@@ -1,0 +1,38 @@
+.App {
+    text-align: center;
+}
+
+.App-logo {
+    animation: App-logo-spin infinite 20s linear;
+    height: 40vmin;
+}
+
+.App-header {
+    background-color: white;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    font-size: calc(10px + 2vmin);
+    color: black;
+}
+
+.App-link {
+    color: #61dafb;
+}
+
+@font-face {
+    font-family: 'Exo 2';
+    font-style: normal;
+    font-weight: 400;
+    src: local('Exo 2'), local('Exo2-Regular'), url(../fonts/exo-google.ttf) format('truetype');
+}
+
+.header-css {
+    width: 100%;
+    font-size: 30px;
+    color: #313030;
+    font-variant-caps: small-caps;
+    text-align: center;
+}
