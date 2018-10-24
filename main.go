@@ -10,6 +10,7 @@ import (
 	"flag"
 	"golang.org/x/oauth2"
 	"github.com/gorilla/securecookie"
+	"github.com/GeertJohan/go.rice"
 )
 
 type authTemplate struct {
@@ -33,6 +34,7 @@ type Config struct {
 	BoltStore    string
 	HTTPAddr     string
 	HTTPListener net.Listener
+	ConfigFile   string
 }
 
 type googleConfig struct {
@@ -55,18 +57,22 @@ func main() {
 	lb.Command("service", flag.String("service", "start", "littleboss start command"))
 	flagHTTP := lb.Listener("http", "tcp", ":80", "-http :80")
 	flagBolt := flag.String("store", "store", "littleboss bolt file")
+	flagConfig := flag.String("config", "config.toml", "littleboss config file")
 	flag.Parse()
 
+	rice.MustFindBox("build")
+
 	lb.Run(func(ctx context.Context) {
-		run(context.Background(), flagHTTP, flagBolt)
+		run(context.Background(), flagHTTP, flagBolt, flagConfig)
 	})
 	log.Printf("Password manager exited")
 }
 
-func run(ctx context.Context, flagHTTP *littleboss.ListenerFlag, flagBolt *string) {
+func run(ctx context.Context, flagHTTP *littleboss.ListenerFlag, flagBolt, flagConfig *string) {
 	cfg.HTTPListener = flagHTTP.Listener()
 	cfg.HTTPAddr = flagHTTP.String()
 	cfg.BoltStore = *flagBolt
+	cfg.ConfigFile = *flagConfig
 	svc, err := NewService(cfg)
 	if err != nil {
 		log.Fatal(err)

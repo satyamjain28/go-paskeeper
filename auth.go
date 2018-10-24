@@ -68,6 +68,7 @@ func (s *Service) setSession(userInfo map[string]interface{}, response http.Resp
 		"id":    id,
 		"email": userInfo["Email"].(string),
 		"name":  userInfo["Name"].(string),
+		"image": userInfo["Picture"].(string),
 	}
 	log.Print(value)
 	encoded, err := s.cookieHandler.Encode("password", value)
@@ -100,11 +101,11 @@ func (s *Service) getSession(request *http.Request) (map[string]string, error) {
 	return cookieValue, err
 }
 
-func (s *Service) clearSession(request *http.Request, w http.ResponseWriter) (map[string]string, error) {
+func (s *Service) clearSession(request *http.Request, w http.ResponseWriter) (error) {
 	existingCookie, err := request.Cookie("password")
 	if err != nil {
 		log.Println("Error in finding the existing cookie.")
-		return nil, err
+		return err
 	}
 	cookieValue := make(map[string]string)
 	err = s.cookieHandler.Decode("password", existingCookie.Value, &cookieValue)
@@ -117,5 +118,5 @@ func (s *Service) clearSession(request *http.Request, w http.ResponseWriter) (ma
 		MaxAge: -1,
 	}
 	http.SetCookie(w, cookie)
-	return cookieValue, nil
+	return nil
 }

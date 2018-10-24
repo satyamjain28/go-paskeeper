@@ -5,3 +5,6 @@ local.toml
 .idea/
 test.go
 encrypt.go
+cookie.key
+build/
+store1

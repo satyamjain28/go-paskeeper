@@ -12,6 +12,8 @@ import (
 	"io/ioutil"
 	"bytes"
 	"github.com/BurntSushi/toml"
+	"strings"
+	"github.com/GeertJohan/go.rice"
 )
 
 func generateRandomSecureKey(path string) (*securecookie.SecureCookie) {
@@ -51,9 +53,24 @@ func generateRandomSecureKey(path string) (*securecookie.SecureCookie) {
 	)
 }
 
+// fileServer starts the file server and return the file
+func fileServer(r chi.Router, path string) {
+	if strings.ContainsAny(path, "{}*") {
+		panic("FileServer does not permit URL parameters.")
+	}
+
+	fs := http.StripPrefix(path, http.FileServer(rice.MustFindBox("build").HTTPBox()))
+
+	path += "*"
+
+	r.Get(path, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		fs.ServeHTTP(w, r)
+	}))
+}
+
 func NewService(cfg *Config) (*Service, error) {
 
-	gConf, err := initializeConfig("config.toml")
+	gConf, err := initializeConfig(cfg.ConfigFile)
 	if err != nil {
 		log.Fatal(err)
 		return nil, err
@@ -93,9 +110,19 @@ func NewService(cfg *Config) (*Service, error) {
 
 	router := chi.NewRouter()
 	router.Use(middleware.Recoverer)
+	router.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			log.Printf("Received request on %s %s", r.URL.String(), r.RequestURI)
+			next.ServeHTTP(w, r)
+		})
+	})
 
+	fileServer(router, "/ui")
+
+	router.Get("/login", svc.login)
 	router.Get("/auth", svc.authorizeRedirect)
 	router.Get("/oauth2", svc.validateOauth)
+	router.Get("/signout", svc.wrapper(svc.logout))
 	router.Get("/session", svc.wrapper(svc.getSessionCookies))
 
 	router.Get("/password", svc.wrapper(svc.getAllBuckets))
@@ -103,8 +130,7 @@ func NewService(cfg *Config) (*Service, error) {
 	router.Get("/password/{bucket}/{id}", svc.wrapper(svc.get))
 	router.Post("/password", svc.wrapper(svc.put))
 	router.NotFound(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(404)
-		w.Write([]byte("the url you are looking for was not found"))
+		http.Redirect(w, r, "/ui/"+r.URL.String(), 302)
 	})
 
 	srv := &http.Server{

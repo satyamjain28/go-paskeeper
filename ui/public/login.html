@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html style="height:100rem">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Password Manager</title>
+    <meta content='width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no' name='viewport'>
+    <link rel="shortcut icon" href="favicon1.png">
+    <style>
+        body {
+            height: 100rem;
+        }
+
+        .login-button {
+            width: 8rem;
+            padding: 0.7rem 0;
+            border: 1px solid #4e4f50;
+            background: white;
+            color: #272525;
+            border-radius: 10px;
+            margin-left: 41rem;
+            outline: none;
+        }
+
+        .login-button:hover {
+            color: white;
+            background: #919395;
+            border: 1px solid #6a6a6a;
+        }
+
+    </style>
+</head>
+<script>
+    function authorize() {
+        window.location.href = '/auth';
+    }
+</script>
+<body style="overflow: hidden;background-size: cover; background: no-repeat center;">
+<div style="height: 150px;margin-top:400px;">
+    <button type="button" class="login-button" onclick="authorize()">
+        AUTHORIZE
+    </button>
+</div>
+</body>
+</html>

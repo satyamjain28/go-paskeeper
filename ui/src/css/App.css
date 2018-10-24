@@ -30,9 +30,10 @@
 }
 
 .header-css {
-    width: 100%;
+    width: 90%;
     font-size: 30px;
     color: #313030;
     font-variant-caps: small-caps;
     text-align: center;
+    margin-left: 5%;
 }

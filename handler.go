@@ -7,11 +7,14 @@ import (
 	"encoding/json"
 	"github.com/pkg/errors"
 	"github.com/fatih/structs"
+	"fmt"
+	"bytes"
+	"html/template"
 )
 
 type passReqBody struct {
-	BucketId string `json:"bucketId"`
-	SecretId string `json:"secretId"`
+	BucketId string `json:"bucket"`
+	SecretId string `json:"secret_name"`
 	Password string `json:"password"`
 }
 
@@ -24,11 +27,11 @@ func (s *Service) wrapper(h http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		session, err := s.getSession(r)
 		if err != nil {
-			http.Redirect(w, r, "/auth", 301)
+			http.Redirect(w, r, "/login", 301)
 			return
 		}
 		if session == nil {
-			http.Redirect(w, r, "/auth", 301)
+			http.Redirect(w, r, "/login", 301)
 			return
 		}
 		h.ServeHTTP(w, r)
@@ -110,10 +113,12 @@ func (s *Service) getAllBuckets(w http.ResponseWriter, r *http.Request) {
 		errorResp(w, "error in fetching the buckets", 400, "failure", err)
 		return
 	}
-	payload := map[string]interface{}{"buckets": buckets}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	byteResp, err := json.Marshal(payload)
+	if len(buckets) == 0 {
+		buckets = make([]string, 0)
+	}
+	byteResp, err := json.Marshal(buckets)
 	if err != nil {
 		errorResp(w, "error in marshalling the response", 400, "failure", err)
 		return
@@ -134,13 +139,22 @@ func (s *Service) validateOauth(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.setSession(structs.Map(userInfo), w)
-	http.Redirect(w, r, "/password", 301)
+	http.Redirect(w, r, "/ui", 301)
 }
 
 func (s *Service) authorizeRedirect(w http.ResponseWriter, r *http.Request) {
 	url := s.getRedirectURL()
 	http.Redirect(w, r, url, 301)
 }
+
+func (s *Service) login(w http.ResponseWriter, r *http.Request) {
+	var doc bytes.Buffer
+	template.Must(template.ParseFiles(
+		"build/login.html",
+	)).Execute(&doc, nil)
+	fmt.Fprintf(w, doc.String())
+}
+
 
 func (s *Service) getSessionCookies(w http.ResponseWriter, r *http.Request) {
 	cookies, err := s.getSession(r)
@@ -156,4 +170,13 @@ func (s *Service) getSessionCookies(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Write(byteResp)
+}
+
+func (s *Service) logout(w http.ResponseWriter, r *http.Request) {
+	err := s.clearSession(r, w)
+	if err != nil {
+		errorResp(w, "not able to logout", 400, "", err)
+		return
+	}
+	http.Redirect(w, r, "/login", 301)
 }
