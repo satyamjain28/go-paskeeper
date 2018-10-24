@@ -87,6 +87,13 @@ func (s *Service) put(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
+	resp := map[string]string{"status": "successful"}
+	respJson, err := json.Marshal(resp)
+	if err != nil {
+		errorResp(w, "error in marshalling body", 400, "", err)
+		return
+	}
+	w.Write([]byte(respJson))
 }
 
 func (s *Service) getAll(w http.ResponseWriter, r *http.Request) {

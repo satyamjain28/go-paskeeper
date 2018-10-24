@@ -24,7 +24,6 @@ type Service struct {
 	srv           *http.Server
 	httpAddr      string
 	bolt          *BoltStore
-	pe            *PassEncryption
 	listener      net.Listener
 	oauth2Config  *oauth2.Config
 	cookieHandler *securecookie.SecureCookie

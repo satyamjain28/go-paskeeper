@@ -12,6 +12,9 @@ import {
 	Col,
 	FormGroup,
 	Input,
+	InputGroup,
+	InputGroupAddon,
+	InputGroupText,
 	Label,
 	Modal,
 	ModalBody,
@@ -37,6 +40,7 @@ class BucketCard extends React.Component {
 			isAlert: false,
 			alertMessage: "",
 			alertType: "danger",
+			viewPassword: false
 		}
 	}
 	
@@ -47,9 +51,9 @@ class BucketCard extends React.Component {
 		})
 	}
 	
-	componentWillMount() {
-		this.getDataFromAPI();
-	}
+	// componentWillMount() {
+	// 	this.getDataFromAPI();
+	// }
 	
 	removeAlert() {
 		this.setState({
@@ -98,6 +102,7 @@ class BucketCard extends React.Component {
 						if (this.state.passwordKey !== "") {
 							this.credHTTPCall(this.state.passwordKey);
 						}
+						this.getDataFromAPI();
 					} else {
 						this.setState({
 							creds: {},
@@ -121,7 +126,20 @@ class BucketCard extends React.Component {
 						alertType: "danger"
 					});
 				}.bind(this));
+			this.timeOutStart()
 		}
+	}
+	
+	timeOutStart() {
+		setTimeout(function () {
+			this.setState({
+				password: "",
+				locked: true,
+				creds: {},
+				credsShow: false,
+				keys: []
+			})
+		}.bind(this), 10000);
 	}
 	
 	addCred(data) {
@@ -142,6 +160,7 @@ class BucketCard extends React.Component {
 				console.log(error);
 				return error
 			});
+		this.getDataFromAPI();
 		this.newCredentialToggle();
 	}
 	
@@ -178,6 +197,12 @@ class BucketCard extends React.Component {
 		}
 	}
 	
+	viewPasswordToggle() {
+		this.setState({
+			viewPassword: !this.state.viewPassword
+		})
+	}
+	
 	newCredentialToggle() {
 		this.setState({
 			addNewCred: !this.state.addNewCred
@@ -185,7 +210,7 @@ class BucketCard extends React.Component {
 	}
 	
 	render() {
-		const {name, keys, creds, addNewCred, locked, password} = this.state;
+		const {name, keys, creds, addNewCred, locked, password, viewPassword} = this.state;
 		
 		return (
 			<Card outline className={locked ? "card-accent-danger" : "card-accent-success"}>
@@ -198,7 +223,7 @@ class BucketCard extends React.Component {
 					}
 				
 				</CardHeader>
-				<CardBody style={{height: "200px", overflow: "scroll"}}>
+				<CardBody style={{height: locked ? "80px" : "200px", overflow: "scroll"}}>
 					{
 						password === "" ? false :
 							<Button outline color={"success"} className="btn-pill" size="sm"
@@ -241,10 +266,25 @@ class BucketCard extends React.Component {
 					<ModalBody>
 						<FormGroup row>
 							<Col md="2">
+								<Label>Name</Label>
+							</Col>
+							<Col md="10">
+								<Input type="text" value={creds.secretID} disabled/>
+							</Col>
+						</FormGroup>
+						<FormGroup row>
+							<Col md="2">
 								<Label>Credential</Label>
 							</Col>
 							<Col md="10">
-								<Input type="password" value={creds.password} disabled/>
+								<InputGroup>
+									<Input type={viewPassword ? "text" : "password"} value={creds.password}/>
+									<InputGroupAddon addonType="append" onClick={this.viewPasswordToggle.bind(this)}>
+										<InputGroupText>
+											<i className="fa fa-eye"/>
+										</InputGroupText>
+									</InputGroupAddon>
+								</InputGroup>
 							</Col>
 						</FormGroup>
 					</ModalBody>
