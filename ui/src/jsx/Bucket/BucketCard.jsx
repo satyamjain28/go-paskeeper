@@ -23,6 +23,7 @@ import {
 import AddCredential from "./AddCredential";
 import CryptoJS from "crypto-js";
 import Alert from "../Alert/Alert";
+import moment from "moment";
 
 class BucketCard extends React.Component {
 	constructor(props) {
@@ -40,7 +41,8 @@ class BucketCard extends React.Component {
 			isAlert: false,
 			alertMessage: "",
 			alertType: "danger",
-			viewPassword: false
+			viewPassword: false,
+			lastUpdate: moment().unix()
 		}
 	}
 	
@@ -68,20 +70,23 @@ class BucketCard extends React.Component {
 			.then(response => response.json())
 			.then(function (json) {
 				this.setState({
-					keys: json.keys
+					keys: json.keys,
+					lastUpdate: moment().unix()
 				});
 			}.bind(this));
 	}
 	
 	togglePasswordModal() {
 		this.setState({
-			passwordShow: !this.state.passwordShow
+			passwordShow: !this.state.passwordShow,
+			lastUpdate: moment().unix()
 		});
 	}
 	
 	toggleCredsModal() {
 		this.setState({
-			credsShow: !this.state.credsShow
+			credsShow: !this.state.credsShow,
+			lastUpdate: moment().unix()
 		});
 	}
 	
@@ -97,7 +102,8 @@ class BucketCard extends React.Component {
 							creds: json,
 							passwordShow: false,
 							password: password,
-							locked: false
+							locked: false,
+							lastUpdate: moment().unix()
 						});
 						if (this.state.passwordKey !== "") {
 							this.credHTTPCall(this.state.passwordKey);
@@ -111,7 +117,8 @@ class BucketCard extends React.Component {
 							locked: true,
 							isAlert: true,
 							alertMessage: "Incorrect Password!",
-							alertType: "danger"
+							alertType: "danger",
+							lastUpdate: moment().unix()
 						})
 					}
 				}.bind(this))
@@ -123,7 +130,8 @@ class BucketCard extends React.Component {
 						locked: true,
 						isAlert: true,
 						alertMessage: "Incorrect Password!",
-						alertType: "danger"
+						alertType: "danger",
+						lastUpdate: moment().unix()
 					});
 				}.bind(this));
 			this.timeOutStart()
@@ -132,13 +140,17 @@ class BucketCard extends React.Component {
 	
 	timeOutStart() {
 		setTimeout(function () {
-			this.setState({
-				password: "",
-				locked: true,
-				creds: {},
-				credsShow: false,
-				keys: []
-			})
+			if (moment().unix() - this.state.lastUpdate > 10) {
+				this.setState({
+					password: "",
+					locked: true,
+					creds: {},
+					credsShow: false,
+					keys: []
+				})
+			} else {
+				this.timeOutStart();
+			}
 		}.bind(this), 10000);
 	}
 	
@@ -181,14 +193,16 @@ class BucketCard extends React.Component {
 				json.password = decrypted.toString(CryptoJS.enc.Utf8);
 				this.setState({
 					creds: json,
-					credsShow: true
+					credsShow: true,
+					lastUpdate: moment().unix()
 				})
 			}.bind(this))
 			.catch(function (error) {
 				this.setState({
 					creds: {},
 					credsShow: false,
-					locked: true
+					locked: true,
+					lastUpdate: moment().unix()
 				});
 			}.bind(this))
 	}
@@ -199,7 +213,8 @@ class BucketCard extends React.Component {
 			this.setState({
 				passwordShow: true,
 				password: "",
-				passwordKey: credKey
+				passwordKey: credKey,
+				lastUpdate: moment().unix()
 			});
 		} else {
 			this.credHTTPCall(credKey);
@@ -208,13 +223,15 @@ class BucketCard extends React.Component {
 	
 	viewPasswordToggle() {
 		this.setState({
-			viewPassword: !this.state.viewPassword
+			viewPassword: !this.state.viewPassword,
+			lastUpdate: moment().unix()
 		})
 	}
 	
 	newCredentialToggle() {
 		this.setState({
-			addNewCred: !this.state.addNewCred
+			addNewCred: !this.state.addNewCred,
+			lastUpdate: moment().unix()
 		})
 	}
 	
