@@ -162,7 +162,6 @@ func (s *Service) login(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, doc.String())
 }
 
-
 func (s *Service) getSessionCookies(w http.ResponseWriter, r *http.Request) {
 	cookies, err := s.getSession(r)
 	if err != nil {

@@ -54,7 +54,7 @@ func generateRandomSecureKey(path string) (*securecookie.SecureCookie) {
 }
 
 // fileServer starts the file server and return the file
-func fileServer(r chi.Router, path string) {
+func (s *Service) fileServer(r chi.Router, path string) {
 	if strings.ContainsAny(path, "{}*") {
 		panic("FileServer does not permit URL parameters.")
 	}
@@ -117,8 +117,9 @@ func NewService(cfg *Config) (*Service, error) {
 		})
 	})
 
-	fileServer(router, "/ui")
+	svc.fileServer(router, "/ui")
 
+	router.Get("/", svc.login)
 	router.Get("/login", svc.login)
 	router.Get("/auth", svc.authorizeRedirect)
 	router.Get("/oauth2", svc.validateOauth)

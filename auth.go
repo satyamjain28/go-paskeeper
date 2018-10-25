@@ -90,7 +90,6 @@ func (s *Service) setSession(userInfo map[string]interface{}, response http.Resp
 func (s *Service) getSession(request *http.Request) (map[string]string, error) {
 	cookie, err := request.Cookie("password")
 	if err != nil {
-		log.Println("User not logged in. No cookies found!")
 		return nil, err
 	}
 	cookieValue := make(map[string]string)
@@ -112,10 +111,11 @@ func (s *Service) clearSession(request *http.Request, w http.ResponseWriter) (er
 	name := cookieValue["name"]
 	log.Println(name, "logged out")
 	cookie := &http.Cookie{
-		Name:   "password",
-		Value:  "",
-		Path:   "/",
-		MaxAge: -1,
+		Name:    "password",
+		Value:   "",
+		Path:    "/",
+		MaxAge:  -1,
+		Expires: time.Unix(0, 0),
 	}
 	http.SetCookie(w, cookie)
 	return nil

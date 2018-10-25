@@ -143,24 +143,33 @@ class BucketCard extends React.Component {
 	}
 	
 	addCred(data) {
-		let encrypted = CryptoJS.AES.encrypt(data.credential, this.state.password);
-		fetch("/password", {
-			method: "post",
-			headers: {
-				'Content-Type': 'application/json',
-				'user': this.state.userData.email
-			},
-			body: JSON.stringify({
-				secret_name: data.name,
-				bucket: this.state.name,
-				password: encrypted.toString()
+		if (this.state.password !== "") {
+			let encrypted = CryptoJS.AES.encrypt(data.credential, this.state.password);
+			fetch("/password", {
+				method: "post",
+				headers: {
+					'Content-Type': 'application/json',
+					'user': this.state.userData.email
+				},
+				body: JSON.stringify({
+					secret_name: data.name,
+					bucket: this.state.name,
+					password: encrypted.toString()
+				})
+			}).then(response => response.json())
+				.catch(function (error) {
+					console.log(error);
+					return error
+				});
+			this.getDataFromAPI();
+			
+		} else {
+			this.setState({
+				isAlert: true,
+				alertMessage: "Password expired!",
+				alertType: "danger"
 			})
-		}).then(response => response.json())
-			.catch(function (error) {
-				console.log(error);
-				return error
-			});
-		this.getDataFromAPI();
+		}
 		this.newCredentialToggle();
 	}
 	
