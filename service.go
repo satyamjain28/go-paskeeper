@@ -94,7 +94,7 @@ func NewService(cfg *Config) (*Service, error) {
 		Endpoint: google.Endpoint,
 	}
 
-	b := &BoltStore{StoreName: cfg.BoltStore}
+	b := &Store{Name: cfg.BoltStore}
 	err = b.Init()
 	if err != nil {
 		log.Fatal(err)
@@ -126,10 +126,19 @@ func NewService(cfg *Config) (*Service, error) {
 	router.Get("/signout", svc.wrapper(svc.logout))
 	router.Get("/session", svc.wrapper(svc.getSessionCookies))
 
-	router.Get("/password", svc.wrapper(svc.getAllBuckets))
-	router.Get("/password/{bucket}", svc.wrapper(svc.getAll))
-	router.Get("/password/{bucket}/{id}", svc.wrapper(svc.get))
-	router.Post("/password", svc.wrapper(svc.put))
+	router.Get("/collection", svc.wrapper(svc.getAllCollections))
+	router.Get("/collection/{id}", svc.wrapper(svc.getCollection))
+	router.Post("/collection", svc.wrapper(svc.insertCollection))
+	router.Put("/collection/{collectionID}/user", svc.wrapper(svc.addUser))
+	router.Delete("/collection/{collectionID}/user", svc.wrapper(svc.removeUser))
+	router.Delete("/collection/{collectionID}", svc.wrapper(svc.deleteCollection))
+
+	router.Get("/collection/{collectionID}/credential", svc.wrapper(svc.getAllCredentials))
+	router.Get("/collection/{collectionID}/credential/{id}", svc.wrapper(svc.getCredential))
+	router.Post("/collection/{collectionID}/credential", svc.wrapper(svc.insertCredential))
+	router.Delete("/collection/{collectionID}/credential/{id}", svc.wrapper(svc.deleteCredential))
+
+
 	router.NotFound(func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/ui/"+r.URL.String(), 302)
 	})

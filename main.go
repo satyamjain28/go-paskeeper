@@ -13,6 +13,8 @@ import (
 	"github.com/GeertJohan/go.rice"
 )
 
+const MetadataId = "24597007-868f-4e58-b841-0d0c53a6b70e"
+
 type authTemplate struct {
 	ClientId     string
 	ClientSecret string
@@ -23,7 +25,7 @@ type authTemplate struct {
 type Service struct {
 	srv           *http.Server
 	httpAddr      string
-	bolt          *BoltStore
+	bolt          *Store
 	listener      net.Listener
 	oauth2Config  *oauth2.Config
 	cookieHandler *securecookie.SecureCookie

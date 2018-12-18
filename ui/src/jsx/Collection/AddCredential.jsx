@@ -11,13 +11,13 @@ class AddCredential extends React.Component {
 		super(props);
 		this.state = {
 			addNewCred: props.addNewCred,
-			bucketName: props.bucketName
+			collectionName: props.collectionName
 		}
 	}
 	
 	componentWillReceiveProps(nextProps) {
 		this.setState({
-			bucketName: nextProps.bucketName,
+			collectionName: nextProps.collectionName,
 			addNewCred: nextProps.addNewCred
 		})
 	}
@@ -28,9 +28,9 @@ class AddCredential extends React.Component {
 	
 	addCred() {
 		let data = {
-			bucket: this.state.bucketName,
+			collection: this.state.collectionName,
 			credential: document.getElementById("newCred").value,
-			name: document.getElementById("newName").value
+			name: document.getElementById("newName").value,
 		};
 		this.props.addCred(data);
 	}
@@ -44,29 +44,18 @@ class AddCredential extends React.Component {
 					<ModalBody>
 						<FormGroup row>
 							<Col md="2">
-								<Label>Bucket</Label>
+								<Label>Collection</Label>
 							</Col>
 							<Col md="10">
-								<Input value={this.state.bucketName} disabled/>
+								<Input value={this.state.collectionName} disabled/>
 							</Col>
 						</FormGroup>
-						{/*<FormGroup row>*/}
-							{/*<Col md="2">*/}
-								{/*<Label>Type</Label>*/}
-							{/*</Col>*/}
-							{/*<Col md="10">*/}
-								{/*<Input type="select" id="credType" bsSize="sm">*/}
-									{/*<option value="text">Text</option>*/}
-									{/*<option value="json">JSON</option>*/}
-								{/*</Input>*/}
-							{/*</Col>*/}
-						{/*</FormGroup>*/}
 						<FormGroup row>
 							<Col md="2">
 								<Label>Name</Label>
 							</Col>
 							<Col md="10">
-								<Input type="text" id="newName" rows="9" placeholder="Name of the credential..."/>
+								<Input type="text" id="newName" placeholder="Name of the credential..."/>
 							</Col>
 						</FormGroup>
 						<FormGroup row>

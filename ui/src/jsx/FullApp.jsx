@@ -5,7 +5,7 @@
 
 import React from 'react';
 import Header from "./Header/Header";
-import BucketApp from "./Bucket/BucketApp";
+import CollectionApp from "./Collection/CollectionApp";
 
 class FullApp extends React.Component {
 	constructor(props) {
@@ -43,8 +43,13 @@ class FullApp extends React.Component {
 		const {userData} = this.state;
 		return (
 			<div>
-				<Header userData={userData}/>
-				<BucketApp userData={userData}/>
+				{
+					Object.keys(userData).length === 0 ? false :
+						<div>
+							<Header userData={userData}/>
+							<CollectionApp userData={userData}/>
+						</div>
+				}
 			</div>
 		)
 	}

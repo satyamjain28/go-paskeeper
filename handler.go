@@ -10,18 +10,27 @@ import (
 	"fmt"
 	"bytes"
 	"html/template"
+	"time"
 )
 
 type passReqBody struct {
-	BucketId string `json:"bucket"`
-	SecretId string `json:"secret_name"`
-	Password string `json:"password"`
+	CollectionName string   `json:"collection"`
+	SecretId       string   `json:"secret_name"`
+	Password       string   `json:"password"`
+	SharedWith     []string `json:"shared"`
 }
 
-type PassStoreBody struct {
-	Owner    string `json:"owner"`
-	Password string `json:"password"`
+type userReq struct {
+	User string `json:"user"`
 }
+
+type CollectionResponse struct {
+	Name       string   `json:"name"`
+	SharedWith []string `json:"shared"`
+	Owner      string   `json:"owner"`
+	Keys       []string `json:"keys"`
+}
+
 
 func (s *Service) wrapper(h http.HandlerFunc) http.HandlerFunc {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -38,33 +47,74 @@ func (s *Service) wrapper(h http.HandlerFunc) http.HandlerFunc {
 	})
 }
 
-func (s *Service) get(w http.ResponseWriter, r *http.Request) {
-	secretID := chi.URLParam(r, "id")
-	bucketID := chi.URLParam(r, "bucket")
-	passBody, err := s.bolt.Get(bucketID, secretID)
+func (s *Service) getAllCollections(w http.ResponseWriter, r *http.Request) {
+	allCollections, err := s.bolt.GetAllCollections()
 	if err != nil {
-		errorResp(w, "error in fetching the password", 400, "failure", err)
+		errorResp(w, "error in fetching the collections", 400, "failure", err)
 		return
 	}
-	if passBody.Password == "" {
-		errorResp(w, "secret not found", 404, "failure", err)
-		return
-	}
-	payload := map[string]string{"password": passBody.Password, "secretID": secretID, "bucketID": bucketID, "owner": passBody.Owner}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	byteResp, err := json.Marshal(payload)
+	if len(allCollections) == 0 {
+		allCollections = make([]string, 0)
+	}
+	var collections []string
+	for _, collection := range allCollections {
+		collections = append(collections, collection)
+	}
+	b, err := json.Marshal(collections)
 	if err != nil {
 		errorResp(w, "error in marshalling the response", 400, "failure", err)
 		return
 	}
-	w.Write(byteResp)
+	w.Write(b)
 }
 
-func (s *Service) put(w http.ResponseWriter, r *http.Request) {
+func (s *Service) getCollection(w http.ResponseWriter, r *http.Request) {
+	user := r.Header.Get("user")
+	collectionID := chi.URLParam(r, "id")
+	collection, err := s.bolt.GetCollectionByID(collectionID)
+	if err != nil {
+		errorResp(w, "error in fetching the collections", 404, "failure", err)
+		return
+	}
+	if collection.Owner != user {
+		flag := false
+		for _, email := range collection.SharedWith {
+			if email == user {
+				flag = true
+			}
+		}
+		if !flag {
+			errorResp(w, "unauthorized to fetch this collection", 401, "failure", err)
+			return
+		}
+	}
+	keys, err := s.bolt.GetAllKeys(collectionID)
+	if err != nil {
+		errorResp(w, "error in fetching the collections", 404, "failure", err)
+		return
+	}
+	var collectionResponse CollectionResponse
+	collectionResponse.SharedWith = collection.SharedWith
+	collectionResponse.Owner = collection.Owner
+	collectionResponse.Name = collection.Name
+	collectionResponse.Keys = keys
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	b, err := json.Marshal(collectionResponse)
+	if err != nil {
+		errorResp(w, "error in marshalling the response", 400, "failure", err)
+		return
+	}
+	w.Write(b)
+}
+
+func (s *Service) insertCollection(w http.ResponseWriter, r *http.Request) {
 	user := r.Header.Get("user")
 	if user == "" {
-		errorResp(w, "user header not found", 400, "", errors.New("user header not found"))
+		errorResp(w, "user header not found", 400, "",
+			errors.New("user header not found"))
 		return
 	}
 	contents, err := ioutil.ReadAll(r.Body)
@@ -79,8 +129,9 @@ func (s *Service) put(w http.ResponseWriter, r *http.Request) {
 		errorResp(w, "error in unmarshalling body", 400, "", err)
 		return
 	}
-	psb := &PassStoreBody{Owner: user, Password: reqBody.Password}
-	err = s.bolt.Put(reqBody.BucketId, reqBody.SecretId, *psb)
+	cred := Credential{Password: reqBody.Password, CreatedOn: int(time.Now().Unix())}
+	collection := Collection{Name: reqBody.CollectionName, SharedWith: reqBody.SharedWith, Owner: user}
+	err = s.bolt.Put(collection, reqBody.SecretId, cred)
 	if err != nil {
 		errorResp(w, "error in storing the password", 400, "", err)
 		return
@@ -96,14 +147,124 @@ func (s *Service) put(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(respJson))
 }
 
-func (s *Service) getAll(w http.ResponseWriter, r *http.Request) {
-	bucketID := chi.URLParam(r, "bucket")
-	keys, err := s.bolt.GetAllKeys(bucketID)
+func (s *Service) deleteCollection(w http.ResponseWriter, r *http.Request) {
+	collectionID := chi.URLParam(r, "id")
+	err := s.bolt.DeleteCollection(collectionID)
+	if err != nil {
+		errorResp(w, "error in deleting the collection", 400, "failure", err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	payload := map[string]string{
+		"status": "successful",
+	}
+	b, err := json.Marshal(payload)
+	if err != nil {
+		errorResp(w, "error in marshalling the response", 400, "failure", err)
+		return
+	}
+	w.Write(b)
+}
+
+func (s *Service) addUser(w http.ResponseWriter, r *http.Request) {
+	user := r.Header.Get("user")
+	collectionID := chi.URLParam(r, "collectionID")
+	c, err := s.bolt.GetCollectionByID(collectionID)
+	if err != nil {
+		errorResp(w, "error in fetching the collection", 400, "", err)
+		return
+	}
+	if c.Owner != user {
+		errorResp(w, "unauthorized to update the collection", 403, "", err)
+		return
+	}
+	contents, err := ioutil.ReadAll(r.Body)
+	defer r.Body.Close()
+	if err != nil {
+		errorResp(w, "error in reading body", 400, "", err)
+		return
+	}
+	var reqBody userReq
+	err = json.Unmarshal(contents, &reqBody)
+	if err != nil {
+		errorResp(w, "error in unmarshalling body", 400, "", err)
+		return
+	}
+	err = c.addUser(reqBody.User)
+	if err != nil {
+		errorResp(w, "error in adding the user", 400, "", err)
+		return
+	}
+	err = s.bolt.Update(c)
+	if err != nil {
+		errorResp(w, "error in updating the added user", 400, "", err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	resp := map[string]string{"status": "successful"}
+	respJson, err := json.Marshal(resp)
+	if err != nil {
+		errorResp(w, "error in marshalling body", 400, "", err)
+		return
+	}
+	w.Write([]byte(respJson))
+}
+
+func (s *Service) removeUser(w http.ResponseWriter, r *http.Request) {
+	user := r.Header.Get("user")
+	collectionID := chi.URLParam(r, "collectionID")
+	c, err := s.bolt.GetCollectionByID(collectionID)
+	if err != nil {
+		errorResp(w, "error in fetching the collection", 400, "", err)
+		return
+	}
+	if c.Owner != user {
+		errorResp(w, "unauthorized to update the collection", 403, "", err)
+		return
+	}
+	contents, err := ioutil.ReadAll(r.Body)
+	defer r.Body.Close()
+	if err != nil {
+		errorResp(w, "error in reading body", 400, "", err)
+		return
+	}
+	var reqBody userReq
+	err = json.Unmarshal(contents, &reqBody)
+	if err != nil {
+		errorResp(w, "error in unmarshalling body", 400, "", err)
+		return
+	}
+	err = c.removeUser(reqBody.User)
+	if err != nil {
+		errorResp(w, "error in removing the user", 400, "", err)
+		return
+	}
+	err = s.bolt.Update(c)
+	if err != nil {
+		errorResp(w, "error in updating the added user", 400, "", err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	resp := map[string]string{"status": "successful"}
+	respJson, err := json.Marshal(resp)
+	if err != nil {
+		errorResp(w, "error in marshalling body", 400, "", err)
+		return
+	}
+	w.Write([]byte(respJson))
+}
+
+func (s *Service) getAllCredentials(w http.ResponseWriter, r *http.Request) {
+	collectionID := chi.URLParam(r, "collectionID")
+	keys, err := s.bolt.GetAllKeys(collectionID)
 	if err != nil {
 		errorResp(w, "error in fetching the keys", 400, "failure", err)
 		return
 	}
-	payload := map[string]interface{}{"keys": keys, "bucketID": bucketID}
+	payload := map[string]interface{}{"keys": keys, "collectionID": collectionID}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	byteResp, err := json.Marshal(payload)
@@ -114,23 +275,105 @@ func (s *Service) getAll(w http.ResponseWriter, r *http.Request) {
 	w.Write(byteResp)
 }
 
-func (s *Service) getAllBuckets(w http.ResponseWriter, r *http.Request) {
-	buckets, err := s.bolt.GetAllBuckets()
+func (s *Service) getCredential(w http.ResponseWriter, r *http.Request) {
+	credID := chi.URLParam(r, "id")
+	collectionID := chi.URLParam(r, "collectionID")
+	cred, err := s.bolt.GetCred(collectionID, credID)
 	if err != nil {
-		errorResp(w, "error in fetching the buckets", 400, "failure", err)
+		errorResp(w, "error in fetching the password", 400, "failure", err)
 		return
+	}
+	if cred.Password == "" {
+		errorResp(w, "secret not found", 404, "failure", err)
+		return
+	}
+	collection, err := s.bolt.GetCollectionByID(collectionID)
+	if err != nil {
+		errorResp(w, "error in fetching the collection", 400, "failure", err)
+		return
+	}
+	keys, err := s.bolt.GetAllKeys(collectionID)
+	if err != nil {
+		errorResp(w, "error in fetching the keys of the collection", 400, "failure", err)
+		return
+	}
+	payload := map[string]interface{}{
+		"password":     cred.Password,
+		"secretID":     credID,
+		"collectionID": collectionID,
+		"shared":       collection.SharedWith,
+		"keys":         keys,
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	if len(buckets) == 0 {
-		buckets = make([]string, 0)
-	}
-	byteResp, err := json.Marshal(buckets)
+	byteResp, err := json.Marshal(payload)
 	if err != nil {
 		errorResp(w, "error in marshalling the response", 400, "failure", err)
 		return
 	}
 	w.Write(byteResp)
+}
+
+func (s *Service) insertCredential(w http.ResponseWriter, r *http.Request) {
+	user := r.Header.Get("user")
+	collectionID := chi.URLParam(r, "collectionID")
+	c, err := s.bolt.GetCollectionByID(collectionID)
+	if err != nil {
+		errorResp(w, "error in fetching the collection", 400, "", err)
+		return
+	}
+	if c.Owner != user {
+		errorResp(w, "unauthorized to create new credential", 403, "", err)
+		return
+	}
+	contents, err := ioutil.ReadAll(r.Body)
+	defer r.Body.Close()
+	if err != nil {
+		errorResp(w, "error in reading body", 400, "", err)
+		return
+	}
+	var reqBody passReqBody
+	err = json.Unmarshal(contents, &reqBody)
+	if err != nil {
+		errorResp(w, "error in unmarshalling body", 400, "", err)
+		return
+	}
+	cred := Credential{Password: reqBody.Password, CreatedOn: int(time.Now().Unix())}
+	err = s.bolt.Put(c, reqBody.SecretId, cred)
+	if err != nil {
+		errorResp(w, "error in storing the password", 400, "", err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	resp := map[string]string{"status": "successful"}
+	respJson, err := json.Marshal(resp)
+	if err != nil {
+		errorResp(w, "error in marshalling body", 400, "", err)
+		return
+	}
+	w.Write([]byte(respJson))
+}
+
+func (s *Service) deleteCredential(w http.ResponseWriter, r *http.Request) {
+	collectionID := chi.URLParam(r, "collectionID")
+	credentialID := chi.URLParam(r, "id")
+	err := s.bolt.DeleteCredential(collectionID, credentialID)
+	if err != nil {
+		errorResp(w, "error in deleting the collection", 400, "failure", err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	payload := map[string]string{
+		"status": "successful",
+	}
+	b, err := json.Marshal(payload)
+	if err != nil {
+		errorResp(w, "error in marshalling the response", 400, "failure", err)
+		return
+	}
+	w.Write(b)
 }
 
 func (s *Service) validateOauth(w http.ResponseWriter, r *http.Request) {

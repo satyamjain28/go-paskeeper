@@ -70,7 +70,6 @@ func (s *Service) setSession(userInfo map[string]interface{}, response http.Resp
 		"name":  userInfo["Name"].(string),
 		"image": userInfo["Picture"].(string),
 	}
-	log.Print(value)
 	encoded, err := s.cookieHandler.Encode("password", value)
 	if err != nil {
 		return err

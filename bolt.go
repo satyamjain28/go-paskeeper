@@ -5,36 +5,48 @@ import (
 	"github.com/boltdb/bolt"
 	"fmt"
 	"encoding/json"
+	"github.com/pkg/errors"
 )
 
-type BoltStore struct {
+type Store struct {
 	sync.Mutex
-	StoreName string
-	Db        *bolt.DB
+	Name string
+	Db   *bolt.DB
 }
 
-func (b *BoltStore) Init() (err error) {
-	db, err := bolt.Open(b.StoreName, 0600, nil)
+func (s *Store) Init() (err error) {
+	db, err := bolt.Open(s.Name, 0600, nil)
 	if err != nil {
 		return
 	}
-	b.Db = db
+	s.Db = db
 	return
 }
 
-func (b *BoltStore) Close() error {
-	return b.Db.Close()
+func (s *Store) Close() error {
+	return s.Db.Close()
 }
 
-func (b *BoltStore) Put(bucket, key string, body PassStoreBody) error {
-	b.Lock()
-	defer b.Unlock()
-	return b.Db.Update(func(tx *bolt.Tx) (err error) {
-		b, err := tx.CreateBucketIfNotExists([]byte(bucket))
-		if err != nil {
+func (s *Store) Put(c Collection, key string, cred Credential) error {
+	s.Lock()
+	defer s.Unlock()
+	return s.Db.Update(func(tx *bolt.Tx) (err error) {
+		b, err := tx.CreateBucket([]byte(c.Name))
+		if err != nil && err != bolt.ErrBucketExists {
 			return err
+		} else if err == bolt.ErrBucketExists {
+			b = tx.Bucket([]byte(c.Name))
+		} else {
+			sw, err := json.Marshal(c)
+			if err != nil {
+				return err
+			}
+			err = b.Put([]byte(MetadataId), sw)
+			if err != nil {
+				return err
+			}
 		}
-		mb, err := json.Marshal(body)
+		mb, err := json.Marshal(cred)
 		if err != nil {
 			return err
 		}
@@ -42,16 +54,30 @@ func (b *BoltStore) Put(bucket, key string, body PassStoreBody) error {
 	})
 }
 
-func (b *BoltStore) Get(bucket string, key string) (psb PassStoreBody, err error) {
-	b.Lock()
-	defer b.Unlock()
-	err = b.Db.View(func(tx *bolt.Tx) error {
-		bucket := tx.Bucket([]byte(bucket))
-		if bucket == nil {
-			return fmt.Errorf("bucket %v not found", bucket)
+func (s *Store) Update(c Collection) error {
+	s.Lock()
+	defer s.Unlock()
+	return s.Db.Update(func(tx *bolt.Tx) (err error) {
+		b := tx.Bucket([]byte(c.Name))
+		sw, err := json.Marshal(c)
+		if err != nil {
+			return err
 		}
-		r := bucket.Get([]byte(key))
-		if err = json.Unmarshal(r, &psb); err != nil {
+		return b.Put([]byte(MetadataId), sw)
+
+	})
+}
+
+func (s *Store) GetCred(collectionID string, key string) (cred Credential, err error) {
+	s.Lock()
+	defer s.Unlock()
+	err = s.Db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(collectionID))
+		if b == nil {
+			return fmt.Errorf("collection id %v not found", b)
+		}
+		r := b.Get([]byte(key))
+		if err = json.Unmarshal(r, &cred); err != nil {
 			return err
 		}
 		return nil
@@ -59,32 +85,74 @@ func (b *BoltStore) Get(bucket string, key string) (psb PassStoreBody, err error
 	return
 }
 
-func (b *BoltStore) GetAllKeys(bucket string) (ct []string, err error) {
-	b.Lock()
-	defer b.Unlock()
-	err = b.Db.View(func(tx *bolt.Tx) error {
-		bucket := tx.Bucket([]byte(bucket))
-		if bucket == nil {
-			return fmt.Errorf("bucket %v not found", bucket)
+func (s *Store) GetAllKeys(collectionId string) (keys []string, err error) {
+	s.Lock()
+	defer s.Unlock()
+	err = s.Db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(collectionId))
+		if b == nil {
+			return fmt.Errorf("collection id %v not found", collectionId)
 		}
-		c := bucket.Cursor()
+		c := b.Cursor()
 		for k, _ := c.First(); k != nil; k, _ = c.Next() {
-			ct = append(ct, string(k))
+			if string(k) != MetadataId {
+				keys = append(keys, string(k))
+			}
 		}
 		return nil
 	})
 	return
 }
 
-func (b *BoltStore) GetAllBuckets() (ct []string, err error) {
-	b.Lock()
-	defer b.Unlock()
-	err = b.Db.View(func(tx *bolt.Tx) error {
+func (s *Store) GetAllCollections() (ct []string, err error) {
+	s.Lock()
+	defer s.Unlock()
+	err = s.Db.View(func(tx *bolt.Tx) error {
 		tx.ForEach(func(name []byte, bucket *bolt.Bucket) error {
 			ct = append(ct, string(name))
 			return nil
 		})
 		return nil
+	})
+	return
+}
+
+func (s *Store) DeleteCollection(collectionID string) (err error) {
+	s.Lock()
+	defer s.Unlock()
+	err = s.Db.Update(func(tx *bolt.Tx) (err error) {
+		return tx.DeleteBucket([]byte(collectionID))
+	})
+	return
+}
+
+func (s *Store) GetCollectionByID(collectionID string) (c Collection, err error) {
+	s.Lock()
+	defer s.Unlock()
+	err = s.Db.View(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte(collectionID))
+		if b == nil {
+			return fmt.Errorf("collection %s not found", collectionID)
+		}
+		cBytes := b.Get([]byte(MetadataId))
+		err = json.Unmarshal(cBytes, &c)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	return
+}
+
+func (s *Store) DeleteCredential(collectionID, key string) (err error) {
+	s.Lock()
+	defer s.Unlock()
+	err = s.Db.Update(func(tx *bolt.Tx) (err error) {
+		b := tx.Bucket([]byte(collectionID))
+		if b == nil {
+			return errors.New("collection doesn't exist")
+		}
+		return b.Delete([]byte(key))
 	})
 	return
 }

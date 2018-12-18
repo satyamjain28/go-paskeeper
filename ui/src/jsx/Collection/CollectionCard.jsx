@@ -18,6 +18,7 @@ import {
 	Label,
 	Modal,
 	ModalBody,
+	ModalFooter,
 	ModalHeader
 } from "reactstrap";
 import AddCredential from "./AddCredential";
@@ -25,7 +26,7 @@ import CryptoJS from "crypto-js";
 import Alert from "../Alert/Alert";
 import moment from "moment";
 
-class BucketCard extends React.Component {
+class CollectionCard extends React.Component {
 	constructor(props) {
 		super(props);
 		this.state = {
@@ -42,7 +43,12 @@ class BucketCard extends React.Component {
 			alertMessage: "",
 			alertType: "danger",
 			viewPassword: false,
-			lastUpdate: moment().unix()
+			lastUpdate: moment().unix(),
+			sharedWith: [],
+			showSharedWith: false,
+			addClicked: false,
+			addedUsers: [],
+			deletedUsers: []
 		}
 	}
 	
@@ -53,10 +59,6 @@ class BucketCard extends React.Component {
 		})
 	}
 	
-	// componentWillMount() {
-	// 	this.getDataFromAPI();
-	// }
-	
 	removeAlert() {
 		this.setState({
 			isAlert: false,
@@ -66,7 +68,12 @@ class BucketCard extends React.Component {
 	}
 	
 	getDataFromAPI() {
-		fetch('/password/' + this.state.name)
+		fetch('/collection/' + this.state.name, {
+			headers: {
+				'Content-Type': 'application/json',
+				'user': this.state.userData.email
+			},
+		})
 			.then(response => response.json())
 			.then(function (json) {
 				this.setState({
@@ -93,7 +100,12 @@ class BucketCard extends React.Component {
 	getCreds(e) {
 		let password = e.target.value;
 		if (e.keyCode === 13) {
-			fetch('/password/' + this.state.name + '/e886689e-b810-4f07-a522-c8d6e15818b0')
+			fetch('/collection/' + this.state.name + '/credential/e886689e-b810-4f07-a522-c8d6e15818b0', {
+				headers: {
+					'Content-Type': 'application/json',
+					'user': this.state.userData.email
+				},
+			})
 				.then(response => response.json())
 				.then(function (json) {
 					let decrypted = CryptoJS.AES.decrypt(json.password, password);
@@ -103,7 +115,8 @@ class BucketCard extends React.Component {
 							passwordShow: false,
 							password: password,
 							locked: false,
-							lastUpdate: moment().unix()
+							lastUpdate: moment().unix(),
+							sharedWith: json.shared
 						});
 						if (this.state.passwordKey !== "") {
 							this.credHTTPCall(this.state.passwordKey);
@@ -140,7 +153,7 @@ class BucketCard extends React.Component {
 	
 	timeOutStart() {
 		setTimeout(function () {
-			if (moment().unix() - this.state.lastUpdate > 10) {
+			if (moment().unix() - this.state.lastUpdate > 100) {
 				this.setState({
 					password: "",
 					locked: true,
@@ -151,13 +164,13 @@ class BucketCard extends React.Component {
 			} else {
 				this.timeOutStart();
 			}
-		}.bind(this), 10000);
+		}.bind(this), 100);
 	}
 	
 	addCred(data) {
 		if (this.state.password !== "") {
 			let encrypted = CryptoJS.AES.encrypt(data.credential, this.state.password);
-			fetch("/password", {
+			fetch("/collection", {
 				method: "post",
 				headers: {
 					'Content-Type': 'application/json',
@@ -165,8 +178,9 @@ class BucketCard extends React.Component {
 				},
 				body: JSON.stringify({
 					secret_name: data.name,
-					bucket: this.state.name,
-					password: encrypted.toString()
+					collection: this.state.name,
+					password: encrypted.toString(),
+					shared: data.shared
 				})
 			}).then(response => response.json())
 				.catch(function (error) {
@@ -186,7 +200,12 @@ class BucketCard extends React.Component {
 	}
 	
 	credHTTPCall(credKey) {
-		fetch('/password/' + this.state.name + '/' + credKey)
+		fetch('/collection/' + this.state.name + '/credential/' + credKey, {
+			headers: {
+				'Content-Type': 'application/json',
+				'user': this.state.userData.email
+			},
+		})
 			.then(response => response.json())
 			.then(function (json) {
 				let decrypted = CryptoJS.AES.decrypt(json.password, this.state.password);
@@ -235,8 +254,104 @@ class BucketCard extends React.Component {
 		})
 	}
 	
+	toggleSharedWith() {
+		this.setState({
+			showSharedWith: !this.state.showSharedWith,
+			lastUpdate: moment().unix()
+		})
+	}
+	
+	onClickAddSharing() {
+		this.setState({
+			addClicked: !this.state.addClicked
+		})
+	}
+	
+	keyDownNewUser(e) {
+		if (e.keyCode === 13) {
+			let user = e.target.value;
+			if (!CollectionCard.validateEmail(user)) {
+				this.setState({
+					isAlert: true,
+					alertMessage: "Please enter a correct email address",
+					alertType: "danger",
+				});
+			} else {
+				let addedUsers = this.state.addedUsers;
+				let sharedWith = this.state.sharedWith;
+				if (sharedWith.indexOf(user) === -1 && addedUsers.indexOf(user) === -1) {
+					addedUsers.push(user);
+					this.setState({
+						addedUsers: addedUsers,
+						addClicked: false
+					})
+				} else {
+					this.setState({
+						isAlert: true,
+						alertMessage: "User already added",
+						alertType: "danger",
+					});
+				}
+			}
+			
+		}
+	}
+	
+	removeUser(user) {
+		let addedUsers = this.state.addedUsers;
+		let deletedUsers = this.state.deletedUsers;
+		let sharedWith = this.state.sharedWith;
+		let addedIndex = addedUsers.indexOf(user);
+		if (addedIndex !== -1) {
+			addedUsers = addedUsers.splice(addedIndex, 1);
+		} else {
+			let sharedIndex = sharedWith.indexOf(user);
+			if (sharedIndex !== -1) {
+				sharedWith.splice(sharedIndex, 1);
+				deletedUsers.push(user);
+			}
+		}
+		this.setState({
+			addedUsers: addedUsers,
+			sharedWith: sharedWith,
+			deletedUsers: deletedUsers
+		});
+	}
+	
+	onAddCheckPress() {
+		let user = document.getElementById("addNewUser").value;
+		if (!CollectionCard.validateEmail(user)) {
+			this.setState({
+				isAlert: true,
+				alertMessage: "Please enter a correct email address",
+				alertType: "danger",
+			});
+		} else {
+			let addedUsers = this.state.addedUsers;
+			let sharedWith = this.state.sharedWith;
+			if (sharedWith.indexOf(user) === -1 && addedUsers.indexOf(user) === -1) {
+				addedUsers.push(user);
+				this.setState({
+					addedUsers: addedUsers,
+					addClicked: false
+				})
+			} else {
+				this.setState({
+					isAlert: true,
+					alertMessage: "User already added",
+					alertType: "danger",
+				});
+			}
+		}
+	}
+	
+	static validateEmail(email) {
+		let re = /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
+		return re.test(email);
+	}
+	
 	render() {
-		const {name, keys, creds, addNewCred, locked, password, viewPassword} = this.state;
+		const {name, keys, creds, addNewCred, locked, password, viewPassword, sharedWith, addClicked, addedUsers, deletedUsers} = this.state;
 		
 		return (
 			<Card outline className={locked ? "card-accent-danger" : "card-accent-success"}>
@@ -263,6 +378,13 @@ class BucketCard extends React.Component {
 							<Button outline color={"success"} className="btn-pill" size="sm"
 							        onClick={this.togglePasswordModal.bind(this)}>
 								<i className="fa fa-unlock" style={{marginRight: "5px"}}/>Unlock
+							</Button> : false
+					}
+					{
+						sharedWith.length !== 0 && !locked ?
+							<Button outline color={"success"} className="btn-pill" size="sm"
+							        onClick={this.toggleSharedWith.bind(this)}>
+								<i className="fa fa-share" style={{marginRight: "5px"}}/>Share
 							</Button> : false
 					}
 					{
@@ -295,7 +417,7 @@ class BucketCard extends React.Component {
 								<Label>Name</Label>
 							</Col>
 							<Col md="10">
-								<Input type="text" value={creds.secretID} disabled/>
+								<Input type="text" defaultValue={creds.secretID} disabled/>
 							</Col>
 						</FormGroup>
 						<FormGroup row>
@@ -304,7 +426,7 @@ class BucketCard extends React.Component {
 							</Col>
 							<Col md="10">
 								<InputGroup>
-									<Input type={viewPassword ? "text" : "password"} value={creds.password}/>
+									<Input type={viewPassword ? "text" : "password"} defaultValue={creds.password}/>
 									<InputGroupAddon addonType="append" onClick={this.viewPasswordToggle.bind(this)}>
 										<InputGroupText>
 											<i className="fa fa-eye"/>
@@ -315,7 +437,74 @@ class BucketCard extends React.Component {
 						</FormGroup>
 					</ModalBody>
 				</Modal>
-				<AddCredential bucketName={name} addNewCred={addNewCred}
+				<Modal isOpen={this.state.showSharedWith} toggle={this.toggleSharedWith.bind(this)}
+				       className={'modal-danger'}>
+					<ModalHeader>Shared With</ModalHeader>
+					<ModalBody style={{textAlign: "center"}}>
+						{
+							sharedWith.map(function (item) {
+								return (
+									<div key={item}>
+										<Button outline color="info" style={{width: "80%", marginTop: "10px"}} id={item}
+										        className="btn-square">
+											{item}
+										</Button>
+										<Button color="info" style={{width: "10%", marginTop: "10px"}} className="btn-square"
+										        onClick={this.removeUser.bind(this, item)}>
+											<span className="fa fa-times"/>
+										</Button>
+									</div>
+								)
+							}.bind(this))
+						}
+						{
+							addedUsers.map(function (item) {
+								return (
+									<div key={item}>
+										<Button outline color="success" style={{width: "80%", marginTop: "10px"}} id={item}
+										        className="btn-square">
+											{item}
+										</Button>
+										<Button color="success" style={{width: "10%", marginTop: "10px"}} className="btn-square"
+										        onClick={this.removeUser.bind(this, item)}>
+											<span className="fa fa-times"/>
+										</Button>
+									</div>
+								)
+							}.bind(this))
+						}
+						{
+							deletedUsers.map(function (item) {
+								return (
+									<div key={item}>
+										<Button outline color="danger" className="btn-square"
+										        style={{width: "80%", marginTop: "10px", textDecoration: "line-through"}} id={item}>
+											{item}
+										</Button>
+										<Button color="danger" style={{width: "10%", marginTop: "10px"}} className="btn-square">
+											<span className="fa fa-refresh"/>
+										</Button>
+									</div>
+								)
+							})
+						}
+					</ModalBody>
+					<ModalFooter style={{justifyContent: "center"}}>
+						{
+							addClicked ?
+								<InputGroup style={{width: "90%"}}>
+									<Input type="text" id="addNewUser" valid onKeyDown={this.keyDownNewUser.bind(this)}/>
+									<InputGroupAddon addonType="append" onClick={this.onAddCheckPress.bind(this)}>
+										<Button color="success" outline>
+											<i className="fa fa-check"/>
+										</Button>
+									</InputGroupAddon>
+								</InputGroup> :
+								<Button outline color="success" onClick={this.onClickAddSharing.bind(this)}>Add</Button>
+						}
+					</ModalFooter>
+				</Modal>
+				<AddCredential collectionName={name} addNewCred={addNewCred}
 				               addCred={this.addCred.bind(this)}
 				               newCredentialToggle={this.newCredentialToggle.bind(this)}/>
 				{this.state.isAlert ?
@@ -328,4 +517,4 @@ class BucketCard extends React.Component {
 	}
 }
 
-export default BucketCard;
+export default CollectionCard;
