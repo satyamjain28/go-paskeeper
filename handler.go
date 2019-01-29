@@ -18,15 +18,22 @@ type passReqBody struct {
 	SecretId       string   `json:"secret_name"`
 	Password       string   `json:"password"`
 	SharedWith     []string `json:"shared"`
+	Type           string   `json:"type"`
 }
 
 type userReq struct {
 	User string `json:"user"`
 }
 
+type bulkUserReq struct {
+	Deleted []string `json:"deleted"`
+	Added   []string `json:"added"`
+}
+
+
 type CollectionResponse struct {
 	Name       string   `json:"name"`
-	SharedWith []string `json:"shared"`
+	SharedWith []string `json:"shared,omitempty"`
 	Owner      string   `json:"owner"`
 	Keys       []string `json:"keys"`
 }
@@ -48,6 +55,7 @@ func (s *Service) wrapper(h http.HandlerFunc) http.HandlerFunc {
 }
 
 func (s *Service) getAllCollections(w http.ResponseWriter, r *http.Request) {
+	user := r.Header.Get("user")
 	allCollections, err := s.bolt.GetAllCollections()
 	if err != nil {
 		errorResp(w, "error in fetching the collections", 400, "failure", err)
@@ -59,8 +67,15 @@ func (s *Service) getAllCollections(w http.ResponseWriter, r *http.Request) {
 		allCollections = make([]string, 0)
 	}
 	var collections []string
-	for _, collection := range allCollections {
-		collections = append(collections, collection)
+	for _, collectionID := range allCollections {
+		c, err := s.bolt.GetCollectionByID(collectionID)
+		if err != nil {
+			errorResp(w, "error in fetching the collections", 400, "failure", err)
+			return
+		}
+		if c.Owner == user || contains(c.SharedWith, user) {
+			collections = append(collections, collectionID)
+		}
 	}
 	b, err := json.Marshal(collections)
 	if err != nil {
@@ -96,10 +111,12 @@ func (s *Service) getCollection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var collectionResponse CollectionResponse
-	collectionResponse.SharedWith = collection.SharedWith
 	collectionResponse.Owner = collection.Owner
 	collectionResponse.Name = collection.Name
 	collectionResponse.Keys = keys
+	if collection.Owner == user {
+		collectionResponse.SharedWith = collection.SharedWith
+	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	b, err := json.Marshal(collectionResponse)
@@ -129,7 +146,7 @@ func (s *Service) insertCollection(w http.ResponseWriter, r *http.Request) {
 		errorResp(w, "error in unmarshalling body", 400, "", err)
 		return
 	}
-	cred := Credential{Password: reqBody.Password, CreatedOn: int(time.Now().Unix())}
+	cred := Credential{Password: reqBody.Password, CreatedOn: int(time.Now().Unix()), Type: reqBody.Type}
 	collection := Collection{Name: reqBody.CollectionName, SharedWith: reqBody.SharedWith, Owner: user}
 	err = s.bolt.Put(collection, reqBody.SecretId, cred)
 	if err != nil {
@@ -257,6 +274,60 @@ func (s *Service) removeUser(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(respJson))
 }
 
+func (s *Service) changeUsers(w http.ResponseWriter, r *http.Request) {
+	user := r.Header.Get("user")
+	collectionID := chi.URLParam(r, "collectionID")
+	c, err := s.bolt.GetCollectionByID(collectionID)
+	if err != nil {
+		errorResp(w, "error in fetching the collection", 400, "", err)
+		return
+	}
+	if c.Owner != user {
+		errorResp(w, "unauthorized to update the collection", 403, "", err)
+		return
+	}
+	contents, err := ioutil.ReadAll(r.Body)
+	defer r.Body.Close()
+	if err != nil {
+		errorResp(w, "error in reading body", 400, "", err)
+		return
+	}
+	var reqBody bulkUserReq
+	err = json.Unmarshal(contents, &reqBody)
+	if err != nil {
+		errorResp(w, "error in unmarshalling body", 400, "", err)
+		return
+	}
+	for _, element := range reqBody.Deleted {
+		err = c.removeUser(element)
+		if err != nil {
+			errorResp(w, fmt.Sprintf("error in removing the user %s", element), 400, "", err)
+			return
+		}
+	}
+	for _, element := range reqBody.Added {
+		err = c.addUser(element)
+		if err != nil {
+			errorResp(w, fmt.Sprintf("error in adding the user %s", element), 400, "", err)
+			return
+		}
+	}
+	err = s.bolt.Update(c)
+	if err != nil {
+		errorResp(w, "error in updating the added user", 400, "", err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	resp := map[string]string{"status": "successful"}
+	respJson, err := json.Marshal(resp)
+	if err != nil {
+		errorResp(w, "error in marshalling body", 400, "", err)
+		return
+	}
+	w.Write([]byte(respJson))
+}
+
 func (s *Service) getAllCredentials(w http.ResponseWriter, r *http.Request) {
 	collectionID := chi.URLParam(r, "collectionID")
 	keys, err := s.bolt.GetAllKeys(collectionID)
@@ -287,22 +358,21 @@ func (s *Service) getCredential(w http.ResponseWriter, r *http.Request) {
 		errorResp(w, "secret not found", 404, "failure", err)
 		return
 	}
-	collection, err := s.bolt.GetCollectionByID(collectionID)
-	if err != nil {
-		errorResp(w, "error in fetching the collection", 400, "failure", err)
-		return
-	}
-	keys, err := s.bolt.GetAllKeys(collectionID)
-	if err != nil {
-		errorResp(w, "error in fetching the keys of the collection", 400, "failure", err)
-		return
-	}
+	//collection, err := s.bolt.GetCollectionByID(collectionID)
+	//if err != nil {
+	//	errorResp(w, "error in fetching the collection", 400, "failure", err)
+	//	return
+	//}
+	//keys, err := s.bolt.GetAllKeys(collectionID)
+	//if err != nil {
+	//	errorResp(w, "error in fetching the keys of the collection", 400, "failure", err)
+	//	return
+	//}
 	payload := map[string]interface{}{
 		"password":     cred.Password,
 		"secretID":     credID,
 		"collectionID": collectionID,
-		"shared":       collection.SharedWith,
-		"keys":         keys,
+		"type":         cred.Type,
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
@@ -338,7 +408,7 @@ func (s *Service) insertCredential(w http.ResponseWriter, r *http.Request) {
 		errorResp(w, "error in unmarshalling body", 400, "", err)
 		return
 	}
-	cred := Credential{Password: reqBody.Password, CreatedOn: int(time.Now().Unix())}
+	cred := Credential{Password: reqBody.Password, CreatedOn: int(time.Now().Unix()), Type: reqBody.Type}
 	err = s.bolt.Put(c, reqBody.SecretId, cred)
 	if err != nil {
 		errorResp(w, "error in storing the password", 400, "", err)
@@ -428,4 +498,13 @@ func (s *Service) logout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	http.Redirect(w, r, "/login", 301)
+}
+
+func contains(arr []string, element string) bool {
+	for _, ele := range arr {
+		if ele == element {
+			return true
+		}
+	}
+	return false
 }

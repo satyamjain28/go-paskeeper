@@ -64,7 +64,6 @@ class CollectionApp extends React.Component {
 		let sharedUsers = document.getElementById("shared").value;
 		let userList = sharedUsers.split(",");
 		this.createCollection(name, pass, userList);
-		this.getDataFromAPI();
 	}
 	
 	createCollection(name, pass, userList) {
@@ -79,13 +78,15 @@ class CollectionApp extends React.Component {
 				secret_name: "e886689e-b810-4f07-a522-c8d6e15818b0",
 				collection: name,
 				password: encrypted.toString(),
-				shared: userList
+				shared: userList,
+				type: "string"
 			})
-		}).then(response => response.json())
-			.catch(function (error) {
-				console.log(error);
-				return error
-			})
+		}).then(function (response) {
+			return response.json()
+		}).then(responseData => this.getDataFromAPI()).catch(function (error) {
+			console.log(error);
+			return error
+		})
 	}
 	
 	toggleAddNewCollection() {
@@ -99,7 +100,7 @@ class CollectionApp extends React.Component {
 		return (
 			<div style={{marginTop: "10px", padding: "20px"}}>
 				<div style={{width: "100%", display: "inline-block"}}>
-					<Button style={{float: "right"}} onClick={this.toggleAddNewCollection.bind(this)}
+					<Button style={{float: "right"}} onClick={this.toggleAddNewCollection.bind(this)} disabled={true}
 					        outline color="success">
 						<i className={"fa fa-plus"} style={{marginRight: "10px"}}/>New Cred Group
 					</Button>
@@ -145,7 +146,8 @@ class CollectionApp extends React.Component {
 						</FormGroup>
 					</ModalBody>
 					<ModalFooter>
-						<Button outline size="sm" color="success" onClick={this.addCollection.bind(this)}>Add</Button>
+						<Button outline size="sm" color="success" modal="dismiss"
+						        onClick={this.addCollection.bind(this)}>Add</Button>
 						<Button outline size="sm" color="danger" onClick={this.toggleAddNewCollection.bind(this)}>Cancel</Button>
 					</ModalFooter>
 				</Modal>

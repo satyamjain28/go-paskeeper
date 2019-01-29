@@ -6,6 +6,7 @@
 import React from 'react';
 import {Button, Col, FormGroup, Input, Label, Modal, ModalBody, ModalFooter, ModalHeader} from "reactstrap";
 
+
 class AddCredential extends React.Component {
 	constructor(props) {
 		super(props);
@@ -31,6 +32,7 @@ class AddCredential extends React.Component {
 			collection: this.state.collectionName,
 			credential: document.getElementById("newCred").value,
 			name: document.getElementById("newName").value,
+			type: document.getElementById("newType").value
 		};
 		this.props.addCred(data);
 	}
@@ -64,6 +66,14 @@ class AddCredential extends React.Component {
 							</Col>
 							<Col md="10">
 								<Input type="textarea" id="newCred" rows="9" placeholder="Paste the credentials here..."/>
+							</Col>
+						</FormGroup>
+						<FormGroup row>
+							<Col md="2">
+								<Label>Type</Label>
+							</Col>
+							<Col md="10">
+								<Input type="text" id="newType" placeholder="Type of credential..."/>
 							</Col>
 						</FormGroup>
 					</ModalBody>

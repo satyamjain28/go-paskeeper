@@ -2,13 +2,15 @@
   "name": "my-app",
   "version": "0.1.0",
   "private": true,
-  "proxy": "http://localhost:80",
+  "proxy": "http://localhost:4567",
   "dependencies": {
     "crypto-js": "^3.1.9-1",
+    "json-beautify": "^1.0.1",
     "moment": "^2.22.2",
     "node-rsa": "^1.0.1",
     "react": "^16.5.2",
     "react-dom": "^16.5.2",
+    "react-json-view": "^1.19.1",
     "react-scripts": "2.0.5",
     "reactstrap": "^6.5.0"
   },

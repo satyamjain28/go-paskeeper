@@ -112,7 +112,7 @@ func NewService(cfg *Config) (*Service, error) {
 	router.Use(middleware.Recoverer)
 	router.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			log.Printf("Received request on %s %s", r.URL.String(), r.RequestURI)
+			log.Printf("Request received on %s %s", r.Method, r.URL.String())
 			next.ServeHTTP(w, r)
 		})
 	})
@@ -131,6 +131,7 @@ func NewService(cfg *Config) (*Service, error) {
 	router.Post("/collection", svc.wrapper(svc.insertCollection))
 	router.Put("/collection/{collectionID}/user", svc.wrapper(svc.addUser))
 	router.Delete("/collection/{collectionID}/user", svc.wrapper(svc.removeUser))
+	router.Post("/collection/{collectionID}/user", svc.wrapper(svc.changeUsers))
 	router.Delete("/collection/{collectionID}", svc.wrapper(svc.deleteCollection))
 
 	router.Get("/collection/{collectionID}/credential", svc.wrapper(svc.getAllCredentials))

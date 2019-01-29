@@ -56,7 +56,7 @@ func init() {
 func main() {
 	lb := littleboss.New("epasman")
 	lb.Command("service", flag.String("service", "start", "littleboss start command"))
-	flagHTTP := lb.Listener("http", "tcp", ":80", "-http :80")
+	flagHTTP := lb.Listener("http", "tcp", ":4567", "-http :4567")
 	flagBolt := flag.String("store", "store", "littleboss bolt file")
 	flagConfig := flag.String("config", "config.toml", "littleboss config file")
 	flag.Parse()

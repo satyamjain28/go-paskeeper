@@ -25,6 +25,7 @@ import AddCredential from "./AddCredential";
 import CryptoJS from "crypto-js";
 import Alert from "../Alert/Alert";
 import moment from "moment";
+import ReactJson from 'react-json-view';
 
 class CollectionCard extends React.Component {
 	constructor(props) {
@@ -48,7 +49,9 @@ class CollectionCard extends React.Component {
 			showSharedWith: false,
 			addClicked: false,
 			addedUsers: [],
-			deletedUsers: []
+			deletedUsers: [],
+			owner: "",
+			credsShow: false
 		}
 	}
 	
@@ -76,10 +79,21 @@ class CollectionCard extends React.Component {
 		})
 			.then(response => response.json())
 			.then(function (json) {
-				this.setState({
-					keys: json.keys,
-					lastUpdate: moment().unix()
-				});
+				if (json.owner === this.state.userData.email) {
+					this.setState({
+						keys: json.keys,
+						lastUpdate: moment().unix(),
+						sharedWith: json.shared,
+						owner: json.owner
+					});
+				} else {
+					this.setState({
+						keys: json.keys,
+						lastUpdate: moment().unix(),
+						sharedWith: [],
+						owner: json.owner
+					});
+				}
 			}.bind(this));
 	}
 	
@@ -97,45 +111,29 @@ class CollectionCard extends React.Component {
 		});
 	}
 	
-	getCreds(e) {
-		let password = e.target.value;
-		if (e.keyCode === 13) {
-			fetch('/collection/' + this.state.name + '/credential/e886689e-b810-4f07-a522-c8d6e15818b0', {
-				headers: {
-					'Content-Type': 'application/json',
-					'user': this.state.userData.email
-				},
-			})
-				.then(response => response.json())
-				.then(function (json) {
-					let decrypted = CryptoJS.AES.decrypt(json.password, password);
-					if (decrypted.toString(CryptoJS.enc.Utf8) === "testPass") {
-						this.setState({
-							creds: json,
-							passwordShow: false,
-							password: password,
-							locked: false,
-							lastUpdate: moment().unix(),
-							sharedWith: json.shared
-						});
-						if (this.state.passwordKey !== "") {
-							this.credHTTPCall(this.state.passwordKey);
-						}
-						this.getDataFromAPI();
-					} else {
-						this.setState({
-							creds: {},
-							passwordShow: false,
-							password: "",
-							locked: true,
-							isAlert: true,
-							alertMessage: "Incorrect Password!",
-							alertType: "danger",
-							lastUpdate: moment().unix()
-						})
+	getCredsHTTP(password) {
+		fetch('/collection/' + this.state.name + '/credential/e886689e-b810-4f07-a522-c8d6e15818b0', {
+			headers: {
+				'Content-Type': 'application/json',
+				'user': this.state.userData.email
+			},
+		})
+			.then(response => response.json())
+			.then(function (json) {
+				let decrypted = CryptoJS.AES.decrypt(json.password, password);
+				if (decrypted.toString(CryptoJS.enc.Utf8) === "testPass") {
+					this.setState({
+						creds: json,
+						passwordShow: false,
+						password: password,
+						locked: false,
+						lastUpdate: moment().unix(),
+					});
+					if (this.state.passwordKey !== "") {
+						this.credHTTPCall(this.state.passwordKey);
 					}
-				}.bind(this))
-				.catch(function (error) {
+					this.getDataFromAPI();
+				} else {
 					this.setState({
 						creds: {},
 						passwordShow: false,
@@ -145,9 +143,28 @@ class CollectionCard extends React.Component {
 						alertMessage: "Incorrect Password!",
 						alertType: "danger",
 						lastUpdate: moment().unix()
-					});
-				}.bind(this));
-			this.timeOutStart()
+					})
+				}
+			}.bind(this))
+			.catch(function (error) {
+				this.setState({
+					creds: {},
+					passwordShow: false,
+					password: "",
+					locked: true,
+					isAlert: true,
+					alertMessage: "Incorrect Password!",
+					alertType: "danger",
+					lastUpdate: moment().unix()
+				});
+			}.bind(this));
+		this.timeOutStart()
+	}
+	
+	getCreds(e) {
+		let password = e.target.value;
+		if (e.keyCode === 13) {
+			this.getCredsHTTP(password);
 		}
 	}
 	
@@ -180,7 +197,8 @@ class CollectionCard extends React.Component {
 					secret_name: data.name,
 					collection: this.state.name,
 					password: encrypted.toString(),
-					shared: data.shared
+					shared: data.shared,
+					type: data.type
 				})
 			}).then(response => response.json())
 				.catch(function (error) {
@@ -223,6 +241,39 @@ class CollectionCard extends React.Component {
 					locked: true,
 					lastUpdate: moment().unix()
 				});
+			}.bind(this))
+	}
+	
+	getCollectionDetails() {
+		fetch('/collection/' + this.state.name, {
+			headers: {
+				'Content-Type': 'application/json',
+				'user': this.state.userData.email
+			},
+		})
+			.then(response => response.json())
+			.then(function (json) {
+				if (json.owner === this.state.userData.email) {
+					this.setState({
+						passwordShow: false,
+						locked: false,
+						lastUpdate: moment().unix(),
+						sharedWith: json.shared,
+						deletedUsers: [],
+						addedUsers: [],
+						owner: json.owner
+					});
+				} else {
+					this.setState({
+						passwordShow: false,
+						locked: false,
+						lastUpdate: moment().unix(),
+						sharedWith: [],
+						deletedUsers: [],
+						addedUsers: [],
+						owner: json.owner
+					});
+				}
 			}.bind(this))
 	}
 	
@@ -303,7 +354,7 @@ class CollectionCard extends React.Component {
 		let sharedWith = this.state.sharedWith;
 		let addedIndex = addedUsers.indexOf(user);
 		if (addedIndex !== -1) {
-			addedUsers = addedUsers.splice(addedIndex, 1);
+			addedUsers.splice(addedIndex, 1);
 		} else {
 			let sharedIndex = sharedWith.indexOf(user);
 			if (sharedIndex !== -1) {
@@ -315,6 +366,16 @@ class CollectionCard extends React.Component {
 			addedUsers: addedUsers,
 			sharedWith: sharedWith,
 			deletedUsers: deletedUsers
+		});
+	}
+	
+	restoreUser(user) {
+		let sharedWith = this.state.sharedWith;
+		let deletedUsers = this.state.deletedUsers;
+		deletedUsers.splice(deletedUsers.indexOf(user), 1);
+		sharedWith.push(user);
+		this.setState({
+			sharedWith: sharedWith
 		});
 	}
 	
@@ -345,14 +406,38 @@ class CollectionCard extends React.Component {
 		}
 	}
 	
+	updateSharedWith() {
+		let data = {
+			"added": this.state.addedUsers,
+			"deleted": this.state.deletedUsers
+		};
+		fetch("/collection/" + this.state.name + "/user", {
+			method: "post",
+			headers: {
+				'Content-Type': 'application/json',
+				'user': this.state.userData.email
+			},
+			body: JSON.stringify(data)
+		}).then(function (response) {
+			this.getCollectionDetails();
+		}.bind(this))
+			.catch(function (error) {
+				console.log(error);
+				return error
+			});
+	}
+	
 	static validateEmail(email) {
 		let re = /^(([^<>()[\]\\.,;:\s@"]+(\.[^<>()[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
 		return re.test(email);
 	}
 	
 	render() {
-		const {name, keys, creds, addNewCred, locked, password, viewPassword, sharedWith, addClicked, addedUsers, deletedUsers} = this.state;
-		
+		const {
+			name, keys, creds, addNewCred, locked, password, viewPassword, passwordShow, credsShow,
+			sharedWith, addClicked, addedUsers, deletedUsers, owner, userData, isAlert,
+			alertMessage, alertType, showSharedWith
+		} = this.state;
 		return (
 			<Card outline className={locked ? "card-accent-danger" : "card-accent-success"}>
 				<CardHeader>
@@ -366,11 +451,11 @@ class CollectionCard extends React.Component {
 				</CardHeader>
 				<CardBody style={{height: locked ? "80px" : "200px", overflow: "scroll"}}>
 					{
-						password === "" ? false :
+						password === "" ? false : owner === userData.email ?
 							<Button outline color={"success"} className="btn-pill" size="sm"
 							        onClick={this.newCredentialToggle.bind(this)} style={{marginRight: "5px"}}>
 								<i className="fa fa-plus" style={{marginRight: "5px"}}/>Creds
-							</Button>
+							</Button> : false
 						
 					}
 					{
@@ -401,14 +486,16 @@ class CollectionCard extends React.Component {
 						}.bind(this))
 					}
 				</CardBody>
-				<Modal isOpen={this.state.passwordShow} toggle={this.togglePasswordModal.bind(this)}
+				
+				<Modal isOpen={passwordShow} toggle={this.togglePasswordModal.bind(this)}
 				       className={'modal-danger'}>
 					<ModalHeader>Enter Password</ModalHeader>
 					<ModalBody>
 						<Input type="password" onKeyDown={this.getCreds.bind(this)}/>
 					</ModalBody>
 				</Modal>
-				<Modal isOpen={this.state.credsShow} toggle={this.toggleCredsModal.bind(this)}
+				
+				<Modal isOpen={credsShow} toggle={this.toggleCredsModal.bind(this)}
 				       className={'modal-danger'}>
 					<ModalHeader>Credentials</ModalHeader>
 					<ModalBody>
@@ -426,7 +513,14 @@ class CollectionCard extends React.Component {
 							</Col>
 							<Col md="10">
 								<InputGroup>
-									<Input type={viewPassword ? "text" : "password"} defaultValue={creds.password}/>
+									{
+										viewPassword ?
+											creds.type === "json" ?
+												<ReactJson src={JSON.parse(creds.password)} displayDataTypes={false} name={false}
+												           enableClipboard={false}/>
+												: <Input type={"text"} defaultValue={creds.password}/> :
+											<Input type={"password"} defaultValue={creds.password}/>
+									}
 									<InputGroupAddon addonType="append" onClick={this.viewPasswordToggle.bind(this)}>
 										<InputGroupText>
 											<i className="fa fa-eye"/>
@@ -437,7 +531,8 @@ class CollectionCard extends React.Component {
 						</FormGroup>
 					</ModalBody>
 				</Modal>
-				<Modal isOpen={this.state.showSharedWith} toggle={this.toggleSharedWith.bind(this)}
+				
+				<Modal isOpen={showSharedWith} toggle={this.toggleSharedWith.bind(this)}
 				       className={'modal-danger'}>
 					<ModalHeader>Shared With</ModalHeader>
 					<ModalBody style={{textAlign: "center"}}>
@@ -481,12 +576,13 @@ class CollectionCard extends React.Component {
 										        style={{width: "80%", marginTop: "10px", textDecoration: "line-through"}} id={item}>
 											{item}
 										</Button>
-										<Button color="danger" style={{width: "10%", marginTop: "10px"}} className="btn-square">
+										<Button color="danger" style={{width: "10%", marginTop: "10px"}} className="btn-square"
+										        onClick={this.restoreUser.bind(this, item)}>
 											<span className="fa fa-refresh"/>
 										</Button>
 									</div>
 								)
-							})
+							}.bind(this))
 						}
 					</ModalBody>
 					<ModalFooter style={{justifyContent: "center"}}>
@@ -499,18 +595,33 @@ class CollectionCard extends React.Component {
 											<i className="fa fa-check"/>
 										</Button>
 									</InputGroupAddon>
+									<InputGroupAddon addonType="append" onClick={this.onClickAddSharing.bind(this)}>
+										<Button color="danger" outline>
+											<i className="fa fa-times"/>
+										</Button>
+									</InputGroupAddon>
 								</InputGroup> :
-								<Button outline color="success" onClick={this.onClickAddSharing.bind(this)}>Add</Button>
+								<div>
+									<Button outline color="success" onClick={this.onClickAddSharing.bind(this)}>Add</Button>&nbsp;&nbsp;
+									<Button outline color="success" modal="dismiss"
+									        onClick={this.updateSharedWith.bind(this)}>Submit</Button>
+								</div>
 						}
+					
 					</ModalFooter>
 				</Modal>
-				<AddCredential collectionName={name} addNewCred={addNewCred}
-				               addCred={this.addCred.bind(this)}
-				               newCredentialToggle={this.newCredentialToggle.bind(this)}/>
-				{this.state.isAlert ?
-					<Alert message={this.state.alertMessage}
-					       removeAlert={this.removeAlert.bind(this)}
-					       type={this.state.alertType}/> : false
+				
+				{
+					owner === userData.email ?
+						<AddCredential collectionName={name} addNewCred={addNewCred}
+						               addCred={this.addCred.bind(this)}
+						               newCredentialToggle={this.newCredentialToggle.bind(this)}/> : false
+				}
+				{
+					isAlert ?
+						<Alert message={alertMessage}
+						       removeAlert={this.removeAlert.bind(this)}
+						       type={alertType}/> : false
 				}
 			</Card>
 		)
