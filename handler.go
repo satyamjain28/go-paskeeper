@@ -33,7 +33,7 @@ type bulkUserReq struct {
 
 type CollectionResponse struct {
 	Name       string   `json:"name"`
-	SharedWith []string `json:"shared,omitempty"`
+	SharedWith []string `json:"shared"`
 	Owner      string   `json:"owner"`
 	Keys       []string `json:"keys"`
 }
@@ -358,16 +358,6 @@ func (s *Service) getCredential(w http.ResponseWriter, r *http.Request) {
 		errorResp(w, "secret not found", 404, "failure", err)
 		return
 	}
-	//collection, err := s.bolt.GetCollectionByID(collectionID)
-	//if err != nil {
-	//	errorResp(w, "error in fetching the collection", 400, "failure", err)
-	//	return
-	//}
-	//keys, err := s.bolt.GetAllKeys(collectionID)
-	//if err != nil {
-	//	errorResp(w, "error in fetching the keys of the collection", 400, "failure", err)
-	//	return
-	//}
 	payload := map[string]interface{}{
 		"password":     cred.Password,
 		"secretID":     credID,
@@ -468,6 +458,10 @@ func (s *Service) authorizeRedirect(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Service) login(w http.ResponseWriter, r *http.Request) {
+	cookies, err := s.getSession(r)
+	if err == nil && cookies != nil {
+		http.Redirect(w, r, "/ui", 302)
+	}
 	var doc bytes.Buffer
 	template.Must(template.ParseFiles(
 		"build/login.html",

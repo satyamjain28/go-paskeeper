@@ -4,6 +4,7 @@
   "private": true,
   "proxy": "http://localhost:4567",
   "dependencies": {
+    "clipboard-js": "^0.3.6",
     "crypto-js": "^3.1.9-1",
     "json-beautify": "^1.0.1",
     "moment": "^2.22.2",

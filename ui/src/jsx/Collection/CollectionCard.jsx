@@ -26,6 +26,7 @@ import CryptoJS from "crypto-js";
 import Alert from "../Alert/Alert";
 import moment from "moment";
 import ReactJson from 'react-json-view';
+import Clipboard from 'clipboard-js';
 
 class CollectionCard extends React.Component {
 	constructor(props) {
@@ -55,6 +56,10 @@ class CollectionCard extends React.Component {
 		}
 	}
 	
+	copy(text) {
+		Clipboard.copy(text);
+	}
+	
 	componentWillReceiveProps(nextProps) {
 		this.setState({
 			name: nextProps.name,
@@ -80,12 +85,21 @@ class CollectionCard extends React.Component {
 			.then(response => response.json())
 			.then(function (json) {
 				if (json.owner === this.state.userData.email) {
-					this.setState({
-						keys: json.keys,
-						lastUpdate: moment().unix(),
-						sharedWith: json.shared,
-						owner: json.owner
-					});
+					if (json.shared === null || json.shared === undefined) {
+						this.setState({
+							keys: json.keys,
+							lastUpdate: moment().unix(),
+							sharedWith: [],
+							owner: json.owner
+						});
+					} else {
+						this.setState({
+							keys: json.keys,
+							lastUpdate: moment().unix(),
+							sharedWith: json.shared,
+							owner: json.owner
+						});
+					}
 				} else {
 					this.setState({
 						keys: json.keys,
@@ -101,6 +115,9 @@ class CollectionCard extends React.Component {
 		this.setState({
 			passwordShow: !this.state.passwordShow,
 			lastUpdate: moment().unix()
+		}, function () {
+			let ele = document.getElementById("inputpassword");
+			ele.focus();
 		});
 	}
 	
@@ -254,15 +271,28 @@ class CollectionCard extends React.Component {
 			.then(response => response.json())
 			.then(function (json) {
 				if (json.owner === this.state.userData.email) {
-					this.setState({
-						passwordShow: false,
-						locked: false,
-						lastUpdate: moment().unix(),
-						sharedWith: json.shared,
-						deletedUsers: [],
-						addedUsers: [],
-						owner: json.owner
-					});
+					if (json.shared === null || json.shared === undefined) {
+						this.setState({
+							passwordShow: false,
+							locked: false,
+							lastUpdate: moment().unix(),
+							sharedWith: [],
+							deletedUsers: [],
+							addedUsers: [],
+							owner: json.owner
+						});
+					} else {
+						this.setState({
+							passwordShow: false,
+							locked: false,
+							lastUpdate: moment().unix(),
+							sharedWith: json.shared,
+							deletedUsers: [],
+							addedUsers: [],
+							owner: json.owner
+						});
+					}
+					
 				} else {
 					this.setState({
 						passwordShow: false,
@@ -466,7 +496,7 @@ class CollectionCard extends React.Component {
 							</Button> : false
 					}
 					{
-						sharedWith.length !== 0 && !locked ?
+						!locked ?
 							<Button outline color={"success"} className="btn-pill" size="sm"
 							        onClick={this.toggleSharedWith.bind(this)}>
 								<i className="fa fa-share" style={{marginRight: "5px"}}/>Share
@@ -491,7 +521,7 @@ class CollectionCard extends React.Component {
 				       className={'modal-danger'}>
 					<ModalHeader>Enter Password</ModalHeader>
 					<ModalBody>
-						<Input type="password" onKeyDown={this.getCreds.bind(this)}/>
+						<Input type="password" id={"inputpassword"} onKeyDown={this.getCreds.bind(this)}/>
 					</ModalBody>
 				</Modal>
 				
@@ -504,7 +534,7 @@ class CollectionCard extends React.Component {
 								<Label>Name</Label>
 							</Col>
 							<Col md="10">
-								<Input type="text" defaultValue={creds.secretID} disabled/>
+								<Input type="text" bsSize="sm" defaultValue={creds.secretID} disabled/>
 							</Col>
 						</FormGroup>
 						<FormGroup row>
@@ -512,21 +542,70 @@ class CollectionCard extends React.Component {
 								<Label>Credential</Label>
 							</Col>
 							<Col md="10">
-								<InputGroup>
-									{
-										viewPassword ?
-											creds.type === "json" ?
-												<ReactJson src={JSON.parse(creds.password)} displayDataTypes={false} name={false}
-												           enableClipboard={false}/>
-												: <Input type={"text"} defaultValue={creds.password}/> :
-											<Input type={"password"} defaultValue={creds.password}/>
-									}
-									<InputGroupAddon addonType="append" onClick={this.viewPasswordToggle.bind(this)}>
-										<InputGroupText>
-											<i className="fa fa-eye"/>
-										</InputGroupText>
-									</InputGroupAddon>
-								</InputGroup>
+								{
+									creds.type === "kv" ?
+										<div>
+											{
+												Object.keys(JSON.parse(creds.password)).map(function (item) {
+													let password = JSON.parse(creds.password);
+													return (
+														<FormGroup key={item + "keyvalue"}>
+															<InputGroup>
+																<Input type="text" bsSize="sm" defaultValue={item} disabled/>
+																&nbsp;
+																<Input type={viewPassword ? "text" : "password"} bsSize="sm" disabled
+																       defaultValue={password[item]}/>
+																&nbsp;
+																<InputGroupAddon addonType="append" onClick={this.viewPasswordToggle.bind(this)}>
+																	<InputGroupText>
+																		<i className="fa fa-eye" color="success"/>
+																	</InputGroupText>
+																</InputGroupAddon>
+																<InputGroupAddon addonType="append" onClick={this.copy.bind(this, password[item])}>
+																	<InputGroupText>
+																		<i className="fa fa-copy"/>
+																	</InputGroupText>
+																</InputGroupAddon>
+															</InputGroup>
+														</FormGroup>
+													)
+												}.bind(this))
+											}
+										</div> :
+										!viewPassword ?
+											<InputGroup>
+												<Input type={"password"} bsSize="sm" defaultValue={creds.password}/>
+												<InputGroupAddon addonType="append" onClick={this.viewPasswordToggle.bind(this)}>
+													<InputGroupText>
+														<i className="fa fa-eye" color="success"/>
+													</InputGroupText>
+												</InputGroupAddon>
+												<InputGroupAddon addonType="append" onClick={this.copy.bind(this, creds.password)}>
+													<InputGroupText>
+														<i className="fa fa-copy"/>
+													</InputGroupText>
+												</InputGroupAddon>
+											</InputGroup> :
+											<InputGroup>
+												{
+													creds.type === "json" ?
+														<ReactJson src={JSON.parse(creds.password)} displayDataTypes={false} name={false}
+														           enableClipboard={false}/>
+														: <Input type={"text"} bsSize="sm" defaultValue={creds.password}/>
+												}
+												<InputGroupAddon addonType="append" onClick={this.viewPasswordToggle.bind(this)}>
+													<InputGroupText>
+														<i className="fa fa-eye" color="success"/>
+													</InputGroupText>
+												</InputGroupAddon>
+												<InputGroupAddon addonType="append" onClick={this.copy.bind(this, creds.password)}>
+													<InputGroupText>
+														<i className="fa fa-copy"/>
+													</InputGroupText>
+												</InputGroupAddon>
+											</InputGroup>
+								}
+							
 							</Col>
 						</FormGroup>
 					</ModalBody>

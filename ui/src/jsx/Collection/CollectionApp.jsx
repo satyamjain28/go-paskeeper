@@ -8,6 +8,7 @@ import CollectionCard from "./CollectionCard";
 import {Button, Col, FormGroup, Input, Label, Modal, ModalBody, ModalFooter, ModalHeader, Row} from "reactstrap";
 import CryptoJS from "crypto-js";
 import '../../css/collection.css';
+import Alert from "../Alert/Alert";
 
 class CollectionApp extends React.Component {
 	constructor(props) {
@@ -16,7 +17,10 @@ class CollectionApp extends React.Component {
 			allCollections: [],
 			addNew: false,
 			newName: "",
-			userData: props.userData
+			userData: props.userData,
+			isAlert: false,
+			alertType: "danger",
+			alertMessage: ""
 		}
 	}
 	
@@ -58,12 +62,35 @@ class CollectionApp extends React.Component {
 			}.bind(this));
 	}
 	
+	static validatePassword(password) {
+		let regex = [];
+		regex.push("[A-Z]");
+		regex.push("[a-z]");
+		regex.push("[0-9]");
+		regex.push("[$@$!%*#?&]");
+		let passed = 0;
+		for (let i = 0; i < regex.length; i++) {
+			if (new RegExp(regex[i]).test(password)) {
+				passed++;
+			}
+		}
+		return (passed >= 4 && password.length >= 8);
+	}
+	
 	addCollection() {
 		let name = document.getElementById("newName").value;
 		let pass = document.getElementById("newPass").value;
 		let sharedUsers = document.getElementById("shared").value;
 		let userList = sharedUsers.split(",");
-		this.createCollection(name, pass, userList);
+		if (CollectionApp.validatePassword(pass)) {
+			this.createCollection(name, pass, userList);
+		} else {
+			this.setState({
+				isAlert: true,
+				alertMessage: "Invalid password as per the password policy",
+				alertType: "danger"
+			})
+		}
 	}
 	
 	createCollection(name, pass, userList) {
@@ -89,6 +116,14 @@ class CollectionApp extends React.Component {
 		})
 	}
 	
+	removeAlert() {
+		this.setState({
+			isAlert: false,
+			alertMessage: "",
+			alertType: "danger"
+		})
+	}
+	
 	toggleAddNewCollection() {
 		this.setState({
 			addNew: !this.state.addNew
@@ -96,11 +131,11 @@ class CollectionApp extends React.Component {
 	}
 	
 	render() {
-		const {allCollections, addNew, userData} = this.state;
+		const {allCollections, addNew, userData, isAlert, alertMessage, alertType} = this.state;
 		return (
 			<div style={{marginTop: "10px", padding: "20px"}}>
 				<div style={{width: "100%", display: "inline-block"}}>
-					<Button style={{float: "right"}} onClick={this.toggleAddNewCollection.bind(this)} disabled={true}
+					<Button style={{float: "right"}} onClick={this.toggleAddNewCollection.bind(this)}
 					        outline color="success">
 						<i className={"fa fa-plus"} style={{marginRight: "10px"}}/>New Cred Group
 					</Button>
@@ -151,6 +186,12 @@ class CollectionApp extends React.Component {
 						<Button outline size="sm" color="danger" onClick={this.toggleAddNewCollection.bind(this)}>Cancel</Button>
 					</ModalFooter>
 				</Modal>
+				{
+					isAlert ?
+						<Alert message={alertMessage}
+						       removeAlert={this.removeAlert.bind(this)}
+						       type={alertType}/> : false
+				}
 			</div>
 		)
 	}

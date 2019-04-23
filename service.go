@@ -64,6 +64,11 @@ func (s *Service) fileServer(r chi.Router, path string) {
 	path += "*"
 
 	r.Get(path, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cookies, err := s.getSession(r)
+		if err != nil || cookies == nil {
+			http.Redirect(w, r, "/login", 302)
+			return
+		}
 		fs.ServeHTTP(w, r)
 	}))
 }
