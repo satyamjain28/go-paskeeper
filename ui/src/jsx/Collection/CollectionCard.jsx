@@ -112,13 +112,24 @@ class CollectionCard extends React.Component {
 	}
 	
 	togglePasswordModal() {
-		this.setState({
-			passwordShow: !this.state.passwordShow,
-			lastUpdate: moment().unix()
-		}, function () {
-			let ele = document.getElementById("inputpassword");
-			ele.focus();
-		});
+		if (!this.state.locked) {
+			this.setState({
+				password: "",
+				locked: true,
+				creds: {},
+				credsShow: false,
+				keys: []
+			})
+		} else {
+			this.setState({
+				passwordShow: !this.state.passwordShow,
+				lastUpdate: moment().unix()
+			}, function () {
+				let ele = document.getElementById("inputpassword");
+				ele.focus();
+			});
+		}
+		
 	}
 	
 	toggleCredsModal() {
@@ -474,8 +485,10 @@ class CollectionCard extends React.Component {
 					<b>{name}</b>
 					{
 						locked ?
-							<span className="float-right"><i className="fa fa-lock text-danger"/></span> :
-							<span className="float-right"><i className="fa fa-unlock text-success"/></span>
+							<span className="float-right" onClick={this.togglePasswordModal.bind(this)}><i
+								className="fa fa-lock text-danger"/></span> :
+							<span className="float-right" onClick={this.togglePasswordModal.bind(this)}><i
+								className="fa fa-unlock text-success"/></span>
 					}
 				
 				</CardHeader>
@@ -496,7 +509,7 @@ class CollectionCard extends React.Component {
 							</Button> : false
 					}
 					{
-						!locked ?
+						!locked && userData.email === owner ?
 							<Button outline color={"success"} className="btn-pill" size="sm"
 							        onClick={this.toggleSharedWith.bind(this)}>
 								<i className="fa fa-share" style={{marginRight: "5px"}}/>Share
