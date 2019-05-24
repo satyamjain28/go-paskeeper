@@ -1,1 +1,2 @@
-ui/*
+ui/src/css/* linguist-vendored 
+ui/src/fonts/* linguist-vendored 
