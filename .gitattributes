@@ -1,2 +1,4 @@
 ui/src/css/* linguist-vendored 
 ui/src/fonts/* linguist-vendored 
+ui/src/js/* linguist-detectable=false
+ui/src/jsx/* linguist-detectable=false
