@@ -27,6 +27,10 @@ import Alert from "../Alert/Alert";
 import moment from "moment";
 import ReactJson from 'react-json-view';
 import Clipboard from 'clipboard-js';
+import Loader from 'react-loader-spinner';
+
+const red = "#f86c6b";
+const green = "#4dbd74";
 
 class CollectionCard extends React.Component {
 	constructor(props) {
@@ -52,7 +56,9 @@ class CollectionCard extends React.Component {
 			addedUsers: [],
 			deletedUsers: [],
 			owner: "",
-			credsShow: false
+			credsShow: false,
+			imageBinary: "",
+			isLoader: false
 		}
 	}
 	
@@ -213,6 +219,7 @@ class CollectionCard extends React.Component {
 	}
 	
 	addCred(data) {
+		console.log("Add cred called in collection card");
 		if (this.state.password !== "") {
 			let encrypted = CryptoJS.AES.encrypt(data.credential, this.state.password);
 			fetch("/collection", {
@@ -229,12 +236,14 @@ class CollectionCard extends React.Component {
 					type: data.type
 				})
 			}).then(response => response.json())
+				.then(function (response) {
+					this.getDataFromAPI();
+					this.newCredentialToggle();
+				}.bind(this))
 				.catch(function (error) {
 					console.log(error);
 					return error
 				});
-			this.getDataFromAPI();
-			
 		} else {
 			this.setState({
 				isAlert: true,
@@ -242,34 +251,13 @@ class CollectionCard extends React.Component {
 				alertType: "danger"
 			})
 		}
-		this.newCredentialToggle();
 	}
 	
-	credHTTPCall(credKey) {
-		fetch('/collection/' + this.state.name + '/credential/' + credKey, {
-			headers: {
-				'Content-Type': 'application/json',
-				'user': this.state.userData.email
-			},
-		})
-			.then(response => response.json())
-			.then(function (json) {
-				let decrypted = CryptoJS.AES.decrypt(json.password, this.state.password);
-				json.password = decrypted.toString(CryptoJS.enc.Utf8);
-				this.setState({
-					creds: json,
-					credsShow: true,
-					lastUpdate: moment().unix()
-				})
-			}.bind(this))
-			.catch(function (error) {
-				this.setState({
-					creds: {},
-					credsShow: false,
-					locked: true,
-					lastUpdate: moment().unix()
-				});
-			}.bind(this))
+	openImage(data) {
+		let src = "data:image/png;base64," + data;
+		let img = "<img style=\"max-height: 800px;max-width:800px\" src=\"" + src + "\"/>";
+		let newWindow = window.open(src);
+		newWindow.document.write(img);
 	}
 	
 	getCollectionDetails() {
@@ -318,6 +306,35 @@ class CollectionCard extends React.Component {
 			}.bind(this))
 	}
 	
+	credHTTPCall(credKey) {
+		fetch('/collection/' + this.state.name + '/credential/' + credKey, {
+			headers: {
+				'Content-Type': 'application/json',
+				'user': this.state.userData.email
+			},
+		})
+			.then(response => response.json())
+			.then(function (json) {
+				let decrypted = CryptoJS.AES.decrypt(json.password, this.state.password);
+				json.password = decrypted.toString(CryptoJS.enc.Utf8);
+				this.setState({
+					creds: json,
+					credsShow: true,
+					lastUpdate: moment().unix(),
+					isLoader: false
+				})
+			}.bind(this))
+			.catch(function (error) {
+				this.setState({
+					creds: {},
+					credsShow: false,
+					locked: true,
+					lastUpdate: moment().unix(),
+					isLoader: false
+				});
+			}.bind(this))
+	}
+	
 	fetchCreds(e) {
 		let credKey = e.target.id;
 		if (this.state.locked) {
@@ -328,7 +345,10 @@ class CollectionCard extends React.Component {
 				lastUpdate: moment().unix()
 			});
 		} else {
-			this.credHTTPCall(credKey);
+			this.setState({
+				isLoader: true
+			}, this.credHTTPCall(credKey));
+			
 		}
 	}
 	
@@ -477,7 +497,7 @@ class CollectionCard extends React.Component {
 		const {
 			name, keys, creds, addNewCred, locked, password, viewPassword, passwordShow, credsShow,
 			sharedWith, addClicked, addedUsers, deletedUsers, owner, userData, isAlert,
-			alertMessage, alertType, showSharedWith
+			alertMessage, alertType, showSharedWith, isLoader
 		} = this.state;
 		return (
 			<Card outline className={locked ? "card-accent-danger" : "card-accent-success"}>
@@ -492,43 +512,54 @@ class CollectionCard extends React.Component {
 					}
 				
 				</CardHeader>
-				<CardBody style={{height: locked ? "80px" : "200px", overflow: "scroll"}}>
-					{
-						password === "" ? false : owner === userData.email ?
-							<Button outline color={"success"} className="btn-pill" size="sm"
-							        onClick={this.newCredentialToggle.bind(this)} style={{marginRight: "5px"}}>
-								<i className="fa fa-plus" style={{marginRight: "5px"}}/>Creds
-							</Button> : false
-						
-					}
-					{
-						locked ?
-							<Button outline color={"success"} className="btn-pill" size="sm"
-							        onClick={this.togglePasswordModal.bind(this)}>
-								<i className="fa fa-unlock" style={{marginRight: "5px"}}/>Unlock
-							</Button> : false
-					}
-					{
-						!locked && userData.email === owner ?
-							<Button outline color={"success"} className="btn-pill" size="sm"
-							        onClick={this.toggleSharedWith.bind(this)}>
-								<i className="fa fa-share" style={{marginRight: "5px"}}/>Share
-							</Button> : false
-					}
-					{
-						keys.map(function (item, idx) {
-							if (item !== "e886689e-b810-4f07-a522-c8d6e15818b0") {
-								return (
-									<Button key={idx} outline color={locked ? "info" : "info"}
-									        style={{width: "80%", marginTop: "10px"}} id={item}
-									        onClick={this.fetchCreds.bind(this)}>
-										{item}
-									</Button>
-								)
+				{
+					isLoader ?
+						<Loader
+							type="ThreeDots"
+							color={locked ? red : green}
+							height="70"
+							width="70"
+						/> :
+						<CardBody style={{maxHeight: locked ? "80px" : "400px", overflow: "scroll"}}>
+							{
+								password === "" ? false : owner === userData.email ?
+									<Button outline color={"success"} className="btn-pill" size="sm"
+									        onClick={this.newCredentialToggle.bind(this)} style={{marginRight: "5px"}}>
+										<i className="fa fa-plus" style={{marginRight: "5px"}}/>Creds
+									</Button> : false
+								
 							}
-						}.bind(this))
-					}
-				</CardBody>
+							{
+								locked ?
+									<Button outline color={"success"} className="btn-pill" size="sm"
+									        onClick={this.togglePasswordModal.bind(this)}>
+										<i className="fa fa-unlock" style={{marginRight: "5px"}}/>Unlock
+									</Button> : false
+							}
+							{
+								!locked && userData.email === owner ?
+									<Button outline color={"success"} className="btn-pill" size="sm"
+									        onClick={this.toggleSharedWith.bind(this)}>
+										<i className="fa fa-share" style={{marginRight: "5px"}}/>Share
+									</Button> : false
+							}
+							{
+								keys.map(function (item, idx) {
+									if (item !== "e886689e-b810-4f07-a522-c8d6e15818b0") {
+										return (
+											<Button key={idx} outline color={locked ? "info" : "info"}
+											        style={{width: "80%", marginTop: "10px"}} id={item}
+											        onClick={this.fetchCreds.bind(this)}>
+												{item}
+											</Button>
+										)
+									}
+								}.bind(this))
+							}
+						
+						</CardBody>
+				}
+				
 				
 				<Modal isOpen={passwordShow} toggle={this.togglePasswordModal.bind(this)}
 				       className={'modal-danger'}>
@@ -538,7 +569,7 @@ class CollectionCard extends React.Component {
 					</ModalBody>
 				</Modal>
 				
-				<Modal isOpen={credsShow} toggle={this.toggleCredsModal.bind(this)}
+				<Modal isOpen={credsShow} toggle={this.toggleCredsModal.bind(this)} size={"lg"}
 				       className={'modal-danger'}>
 					<ModalHeader>Credentials</ModalHeader>
 					<ModalBody>
@@ -559,22 +590,37 @@ class CollectionCard extends React.Component {
 									creds.type === "kv" ?
 										<div>
 											{
-												Object.keys(JSON.parse(creds.password)).map(function (item) {
-													let password = JSON.parse(creds.password);
+												JSON.parse(creds.password).map(function (item) {
 													return (
 														<FormGroup key={item + "keyvalue"}>
 															<InputGroup>
-																<Input type="text" bsSize="sm" defaultValue={item} disabled/>
+																<Input type="text" bsSize="sm" defaultValue={item["key"]} disabled/>
 																&nbsp;
-																<Input type={viewPassword ? "text" : "password"} bsSize="sm" disabled
-																       defaultValue={password[item]}/>
+																{
+																	viewPassword ? item["type"] === "image" ?
+																		<div>
+																			<img style={{
+																				display: "block",
+																				maxWidth: "200px",
+																				maxHeight: "200px",
+																				width: "auto",
+																				height: "auto",
+																				cursor: "pointer",
+																			}} id="image" src={"data:image/png;base64," + item["value"]}
+																			     alt="credential" onClick={this.openImage.bind(this, item["value"])}/>
+																		</div> :
+																		<Input type="text" bsSize="sm" disabled
+																		       defaultValue={item["value"]}/> :
+																		<Input type="password" bsSize="sm" disabled defaultValue={item["value"]}/>
+																	
+																}
 																&nbsp;
-																<InputGroupAddon addonType="append" onClick={this.viewPasswordToggle.bind(this)}>
+																<InputGroupAddon addonType="append" onClick={this.viewPasswordToggle.bind(this, item)}>
 																	<InputGroupText>
 																		<i className="fa fa-eye" color="success"/>
 																	</InputGroupText>
 																</InputGroupAddon>
-																<InputGroupAddon addonType="append" onClick={this.copy.bind(this, password[item])}>
+																<InputGroupAddon addonType="append" onClick={this.copy.bind(this, item["value"])}>
 																	<InputGroupText>
 																		<i className="fa fa-copy"/>
 																	</InputGroupText>
@@ -604,6 +650,18 @@ class CollectionCard extends React.Component {
 													creds.type === "json" ?
 														<ReactJson src={JSON.parse(creds.password)} displayDataTypes={false} name={false}
 														           enableClipboard={false}/>
+														: creds.type === "image" ?
+														<div>
+															<img style={{
+																display: "block",
+																maxWidth: "200px",
+																maxHeight: "200px",
+																width: "auto",
+																height: "auto",
+																cursor: "pointer"
+															}} id="image" src={"data:image/png;base64," + creds.password} alt="credential"
+															     onClick={this.openImage.bind(this, creds.password)}/>
+														</div>
 														: <Input type={"text"} bsSize="sm" defaultValue={creds.password}/>
 												}
 												<InputGroupAddon addonType="append" onClick={this.viewPasswordToggle.bind(this)}>
