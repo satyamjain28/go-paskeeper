@@ -140,17 +140,20 @@ class AddCredential extends React.Component {
 			type: "none",
 			isLoader: true
 		}, function () {
+			this.props.updateLastUpdated();
 			this.props.addCred(data);
 		});
 	}
 	
 	onTypeChange() {
+		this.props.updateLastUpdated();
 		this.setState({
 			type: document.getElementById("newType").value
 		})
 	}
 	
 	onAddKV() {
+		this.props.updateLastUpdated();
 		let key = document.getElementById("newKey").value;
 		let kvType = document.getElementById("newKVType").value;
 		let value = "";
@@ -201,6 +204,7 @@ class AddCredential extends React.Component {
 	}
 	
 	onRemoveClicked(item) {
+		this.props.updateLastUpdated();
 		let kv = this.state.kvList;
 		for (let v in kv) {
 			if (kv.hasOwnProperty(v)) {
@@ -216,6 +220,7 @@ class AddCredential extends React.Component {
 	}
 	
 	removeAlert() {
+		this.props.updateLastUpdated();
 		this.setState({
 			isAlert: false,
 			alertMessage: "",
@@ -224,6 +229,7 @@ class AddCredential extends React.Component {
 	}
 	
 	imageUpload(e) {
+		this.props.updateLastUpdated();
 		const files = Array.from(e.target.files);
 		let reader = new FileReader();
 		let file = files[0];
@@ -247,6 +253,7 @@ class AddCredential extends React.Component {
 	}
 	
 	onKVTypeChange() {
+		this.props.updateLastUpdated();
 		let kvType = document.getElementById("newKVType").value;
 		this.setState({
 			newKVType: kvType

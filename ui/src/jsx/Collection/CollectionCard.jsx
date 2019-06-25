@@ -31,6 +31,7 @@ import Loader from 'react-loader-spinner';
 
 const red = "#f86c6b";
 const green = "#4dbd74";
+const timeout = 100;
 
 class CollectionCard extends React.Component {
 	constructor(props) {
@@ -58,8 +59,27 @@ class CollectionCard extends React.Component {
 			owner: "",
 			credsShow: false,
 			imageBinary: "",
-			isLoader: false
-		}
+			isLoader: false,
+			timeLeft: timeout
+		};
+	}
+	
+	updateLastUpdated() {
+		this.setState({
+			lastUpdate: moment().unix()
+		})
+	}
+	
+	updateTimeLeft() {
+		setTimeout(function () {
+			let timeLeft = timeout - (moment().unix() - this.state.lastUpdate);
+			this.setState({
+				timeLeft: timeLeft
+			});
+			if (moment().unix() - this.state.lastUpdate < timeout) {
+				this.updateTimeLeft();
+			}
+		}.bind(this), 1000);
 	}
 	
 	copy(text) {
@@ -192,7 +212,8 @@ class CollectionCard extends React.Component {
 					lastUpdate: moment().unix()
 				});
 			}.bind(this));
-		this.timeOutStart()
+		this.timeOutStart();
+		this.updateTimeLeft();
 	}
 	
 	getCreds(e) {
@@ -204,22 +225,22 @@ class CollectionCard extends React.Component {
 	
 	timeOutStart() {
 		setTimeout(function () {
-			if (moment().unix() - this.state.lastUpdate > 100) {
+			if (moment().unix() - this.state.lastUpdate > timeout) {
 				this.setState({
 					password: "",
 					locked: true,
 					creds: {},
 					credsShow: false,
-					keys: []
+					keys: [],
+					timeLeft: -1
 				})
 			} else {
 				this.timeOutStart();
 			}
-		}.bind(this), 100);
+		}.bind(this), 3000);
 	}
 	
 	addCred(data) {
-		console.log("Add cred called in collection card");
 		if (this.state.password !== "") {
 			let encrypted = CryptoJS.AES.encrypt(data.credential, this.state.password);
 			fetch("/collection", {
@@ -497,7 +518,7 @@ class CollectionCard extends React.Component {
 		const {
 			name, keys, creds, addNewCred, locked, password, viewPassword, passwordShow, credsShow,
 			sharedWith, addClicked, addedUsers, deletedUsers, owner, userData, isAlert,
-			alertMessage, alertType, showSharedWith, isLoader
+			alertMessage, alertType, showSharedWith, isLoader, timeLeft
 		} = this.state;
 		return (
 			<Card outline className={locked ? "card-accent-danger" : "card-accent-success"}>
@@ -507,8 +528,10 @@ class CollectionCard extends React.Component {
 						locked ?
 							<span className="float-right" onClick={this.togglePasswordModal.bind(this)}><i
 								className="fa fa-lock text-danger"/></span> :
-							<span className="float-right" onClick={this.togglePasswordModal.bind(this)}><i
-								className="fa fa-unlock text-success"/></span>
+							<span className="float-right" onClick={this.togglePasswordModal.bind(this)}
+							      style={{color: green, fontWeight: 500}}>
+								{timeLeft}
+							</span>
 					}
 				
 				</CardHeader>
@@ -765,6 +788,7 @@ class CollectionCard extends React.Component {
 					owner === userData.email ?
 						<AddCredential collectionName={name} addNewCred={addNewCred}
 						               addCred={this.addCred.bind(this)}
+						               updateLastUpdated={this.updateLastUpdated.bind(this)}
 						               newCredentialToggle={this.newCredentialToggle.bind(this)}/> : false
 				}
 				{
